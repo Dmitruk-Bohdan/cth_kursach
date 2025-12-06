@@ -1,0 +1,6 @@
+@CTH.Api_HostAddress = http://localhost:5187
+
+GET {{CTH.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

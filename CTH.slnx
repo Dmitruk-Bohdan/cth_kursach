@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="CTH.Api/CTH.Api.csproj" />
+  <Project Path="CTH.Common/CTH.Common.csproj" />
+  <Project Path="CTH.Database/CTH.Database.csproj" />
+  <Project Path="CTH.Services/CTH.Services.csproj" />
+</Solution>
