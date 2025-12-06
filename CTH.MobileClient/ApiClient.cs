@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -95,6 +96,36 @@ public sealed class ApiClient : IDisposable
         return await ToResult(response, cancellationToken);
     }
 
+    public async Task<Result> AbortAttemptAsync(long attemptId, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.PostAsync($"/student/attempts/{attemptId}/abort", null, cancellationToken);
+        return await ToResult(response, cancellationToken);
+    }
+
+    public async Task<Result> ResumeAttemptAsync(long attemptId, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.PostAsync($"/student/attempts/{attemptId}/resume", null, cancellationToken);
+        return await ToResult(response, cancellationToken);
+    }
+
+    public async Task<Result<IReadOnlyCollection<AttemptListItem>>> GetAttemptsAsync(string? status, int limit, int offset, CancellationToken cancellationToken)
+    {
+        var queryParams = new List<string>();
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            queryParams.Add($"status={Uri.EscapeDataString(status)}");
+        }
+        queryParams.Add($"limit={limit}");
+        queryParams.Add($"offset={offset}");
+        
+        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "";
+        var response = await _httpClient.GetAsync($"/student/attempts{queryString}", cancellationToken);
+        var wrapped = await ReadResponseModelAsync<List<AttemptListItem>>(response, cancellationToken);
+        return wrapped.Success
+            ? Result<IReadOnlyCollection<AttemptListItem>>.Ok(wrapped.Value!)
+            : Result<IReadOnlyCollection<AttemptListItem>>.Fail(wrapped.Error ?? "Не удалось получить список попыток.");
+    }
+
     public async Task<Result> LogoutAsync(CancellationToken cancellationToken)
     {
         var response = await _httpClient.PostAsync("/auth/logout", null, cancellationToken);
@@ -113,6 +144,35 @@ public sealed class ApiClient : IDisposable
     {
         var response = await _httpClient.GetAsync($"/student/attempts/{attemptId}", cancellationToken);
         return await ReadResponseModelAsync<AttemptDetails>(response, cancellationToken);
+    }
+
+    public async Task<Result<IReadOnlyCollection<AttemptListItem>>> GetInProgressAttemptsAsync(CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.GetAsync("/student/attempts/in-progress", cancellationToken);
+        var wrapped = await ReadResponseModelAsync<List<AttemptListItem>>(response, cancellationToken);
+        return wrapped.Success
+            ? Result<IReadOnlyCollection<AttemptListItem>>.Ok(wrapped.Value!)
+            : Result<IReadOnlyCollection<AttemptListItem>>.Fail(wrapped.Error ?? "Не удалось получить список попыток.");
+    }
+
+    public async Task<Result<IReadOnlyCollection<UserStatistics>>> GetStatisticsBySubjectAsync(long? subjectId, CancellationToken cancellationToken)
+    {
+        var queryString = subjectId.HasValue ? $"?subjectId={subjectId.Value}" : "";
+        var response = await _httpClient.GetAsync($"/student/statistics/by-subject{queryString}", cancellationToken);
+        var wrapped = await ReadResponseModelAsync<List<UserStatistics>>(response, cancellationToken);
+        return wrapped.Success
+            ? Result<IReadOnlyCollection<UserStatistics>>.Ok(wrapped.Value!)
+            : Result<IReadOnlyCollection<UserStatistics>>.Fail(wrapped.Error ?? "Failed to get statistics.");
+    }
+
+    public async Task<Result<IReadOnlyCollection<UserStatistics>>> GetStatisticsByTopicAsync(long? subjectId, CancellationToken cancellationToken)
+    {
+        var queryString = subjectId.HasValue ? $"?subjectId={subjectId.Value}" : "";
+        var response = await _httpClient.GetAsync($"/student/statistics/by-topic{queryString}", cancellationToken);
+        var wrapped = await ReadResponseModelAsync<List<UserStatistics>>(response, cancellationToken);
+        return wrapped.Success
+            ? Result<IReadOnlyCollection<UserStatistics>>.Ok(wrapped.Value!)
+            : Result<IReadOnlyCollection<UserStatistics>>.Fail(wrapped.Error ?? "Failed to get statistics.");
     }
 
     private static async Task<Result> ToResult(HttpResponseMessage response, CancellationToken cancellationToken)
@@ -252,6 +312,10 @@ public sealed class ApiClient : IDisposable
     public sealed record AttemptDetails(long Id, long TestId, string Status, DateTimeOffset StartedAt, DateTimeOffset? FinishedAt, decimal? RawScore, decimal? ScaledScore, int? DurationSec, IReadOnlyCollection<AttemptAnswer> Answers);
 
     public sealed record AttemptAnswer(long TaskId, string GivenAnswer, bool IsCorrect, int? TimeSpentSec);
+
+    public sealed record AttemptListItem(long Id, long TestId, string TestTitle, long SubjectId, string SubjectName, DateTimeOffset StartedAt, DateTimeOffset? FinishedAt, string Status, decimal? RawScore);
+
+    public sealed record UserStatistics(long Id, long? SubjectId, string? SubjectName, long? TopicId, string? TopicName, int AttemptsTotal, int CorrectTotal, decimal? AccuracyPercentage, DateTimeOffset? LastAttemptAt, decimal? AverageScore, int? AverageTimeSec);
 
     public class Result
     {

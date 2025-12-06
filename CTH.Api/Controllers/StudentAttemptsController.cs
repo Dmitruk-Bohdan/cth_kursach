@@ -58,6 +58,58 @@ public class StudentAttemptsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{attemptId:long}/abort")]
+    public async Task<IActionResult> AbortAttempt(long attemptId, CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _studentAttemptService.AbortAttemptAsync(userId, attemptId, cancellationToken);
+        if (!result.IsSuccessful)
+        {
+            return result.ToActionResult();
+        }
+
+        return NoContent();
+    }
+
+    [HttpPost("{attemptId:long}/resume")]
+    public async Task<IActionResult> ResumeAttempt(long attemptId, CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _studentAttemptService.ResumeAttemptAsync(userId, attemptId, cancellationToken);
+        if (!result.IsSuccessful)
+        {
+            return result.ToActionResult();
+        }
+
+        return NoContent();
+    }
+
+    [HttpGet("in-progress")]
+    public async Task<IActionResult> GetInProgressAttempts(CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _studentAttemptService.GetInProgressAttemptsAsync(userId, cancellationToken);
+        if (!result.IsSuccessful)
+        {
+            return result.ToActionResult();
+        }
+
+        return Ok(result.Result);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAttempts([FromQuery] string? status, [FromQuery] int limit = 50, [FromQuery] int offset = 0, CancellationToken cancellationToken = default)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _studentAttemptService.GetAttemptsAsync(userId, status, limit, offset, cancellationToken);
+        if (!result.IsSuccessful)
+        {
+            return result.ToActionResult();
+        }
+
+        return Ok(result.Result);
+    }
+
     private long GetCurrentUserId()
     {
         var claim = User.FindFirst("Id") ?? User.FindFirst(ClaimTypes.NameIdentifier);

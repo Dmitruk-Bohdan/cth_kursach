@@ -29,6 +29,7 @@ namespace CTH.Services.Extensions
                 .AddScoped<IUserSessionService, UserSessionService>()
                 .AddScoped<IStudentTestService, StudentTestService>()
                 .AddScoped<IStudentAttemptService, StudentAttemptService>()
+                .AddScoped<IStudentStatisticsService, StudentStatisticsService>()
                 .AddScoped<ITeacherTestService, TeacherTestService>();
 
             return services;

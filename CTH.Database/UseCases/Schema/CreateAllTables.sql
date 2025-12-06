@@ -163,11 +163,12 @@ CREATE TABLE IF NOT EXISTS user_stats
     topic_id        BIGINT REFERENCES topic (id),
     attempts_total  INTEGER     NOT NULL DEFAULT 0,
     correct_total   INTEGER     NOT NULL DEFAULT 0,
-    last_attempt_at TIMESTAMPTZ,
+    last_attempt_at  TIMESTAMPTZ,
     average_score   NUMERIC(6,2),
     average_time_sec INTEGER,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, COALESCE(subject_id, 0), COALESCE(topic_id, 0))
 );
 
 CREATE TABLE IF NOT EXISTS recommendation
