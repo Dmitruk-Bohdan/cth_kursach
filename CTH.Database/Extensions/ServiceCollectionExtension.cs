@@ -19,6 +19,9 @@ public static class ServiceCollectionExtension
         services.TryAddScoped<ISqlExecutor, SqlExecutor>();
         services.TryAddScoped<IUserAccountRepository, UserAccountRepository>();
         services.TryAddScoped<IUserSessionRepository, UserSessionRepository>();
+        services.TryAddScoped<ITestRepository, TestRepository>();
+        services.TryAddScoped<IAttemptRepository, AttemptRepository>();
+        services.TryAddScoped<IUserAnswerRepository, UserAnswerRepository>();
 
         return services;
     }

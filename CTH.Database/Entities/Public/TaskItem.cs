@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace CTH.Database.Entities.Public;
 
 public sealed class TaskItem
@@ -11,7 +9,7 @@ public sealed class TaskItem
     public string TaskType { get; set; } = string.Empty;
     public short Difficulty { get; set; }
     public string Statement { get; set; } = string.Empty;
-    public JsonDocument CorrectAnswer { get; set; } = null!;
+    public string CorrectAnswer { get; set; } = string.Empty;
     public string? Explanation { get; set; }
     public bool IsActive { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

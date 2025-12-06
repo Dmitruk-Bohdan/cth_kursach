@@ -1,0 +1,14 @@
+﻿using CTH.Database.Entities.Public;
+
+namespace CTH.Database.Repositories.Interfaces;
+
+public interface ITestRepository
+{
+    Task<IReadOnlyCollection<Test>> GetPublishedTestsAsync(long? subjectId, CancellationToken cancellationToken);
+    Task<Test?> GetTestByIdAsync(long testId, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<TestTask>> GetTestTasksAsync(long testId, CancellationToken cancellationToken);
+    Task<long> CreateAsync(Test test, CancellationToken cancellationToken);
+    Task UpdateAsync(Test test, CancellationToken cancellationToken);
+    Task DeleteAsync(long testId, CancellationToken cancellationToken);
+    Task ReplaceTasksAsync(long testId, IReadOnlyCollection<TestTask> tasks, CancellationToken cancellationToken);
+}

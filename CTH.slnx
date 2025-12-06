@@ -1,6 +1,9 @@
 <Solution>
+  <Project Path="CTH.AdminPanelClient/CTH.AdminPanelClient.csproj" Id="cbd07328-a8ab-4dab-9eaa-c02a56cf87a6" />
   <Project Path="CTH.Api/CTH.Api.csproj" />
   <Project Path="CTH.Common/CTH.Common.csproj" />
   <Project Path="CTH.Database/CTH.Database.csproj" />
+  <Project Path="CTH.MobileClient/CTH.MobileClient.csproj" Id="45e5e383-b34b-4c32-bafd-5ae52cb61ec8" />
   <Project Path="CTH.Services/CTH.Services.csproj" />
+  <Project Path="CTH.TeacherWebClient/CTH.TeacherWebClient.csproj" Id="0c2bb222-123d-42d1-a801-86ab9730bead" />
 </Solution>

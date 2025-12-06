@@ -11,6 +11,8 @@ public sealed class Test
     public short? AttemptsAllowed { get; set; }
     public string? Mode { get; set; }
     public bool IsPublished { get; set; }
+    public bool IsPublic { get; set; }
+    public bool IsStateArchive { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 

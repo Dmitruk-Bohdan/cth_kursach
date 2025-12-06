@@ -26,7 +26,10 @@ namespace CTH.Services.Extensions
             services
                 .AddScoped<IUserAccoutManagmentService, UserAccoutManagmentService>()
                 .AddScoped<IUserIdentityService, UserIdentityService>()
-                .AddScoped<IUserSessionService, UserSessionService>();
+                .AddScoped<IUserSessionService, UserSessionService>()
+                .AddScoped<IStudentTestService, StudentTestService>()
+                .AddScoped<IStudentAttemptService, StudentAttemptService>()
+                .AddScoped<ITeacherTestService, TeacherTestService>();
 
             return services;
         }

@@ -81,6 +81,8 @@ CREATE TABLE IF NOT EXISTS test
     attempts_allowed SMALLINT,
     mode            VARCHAR(50),
     is_published    BOOLEAN      NOT NULL DEFAULT FALSE,
+    is_public       BOOLEAN      NOT NULL DEFAULT FALSE,
+    is_state_archive BOOLEAN     NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
@@ -149,7 +151,8 @@ CREATE TABLE IF NOT EXISTS user_answer
     is_correct    BOOLEAN     NOT NULL,
     time_spent_sec INTEGER,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (attempt_id, task_id)
 );
 
 CREATE TABLE IF NOT EXISTS user_stats
