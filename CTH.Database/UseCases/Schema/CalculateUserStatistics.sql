@@ -49,12 +49,13 @@ BEGIN
     WHERE ua.attempt_id = p_attempt_id;
     
     -- Обновляем статистику по предмету (subject_id, topic_id = NULL)
+    -- attempts_total для предмета - это сумма всех заданий из всех попыток, а не количество попыток
     -- Используем INSERT ... ON CONFLICT с уникальным индексом
     INSERT INTO user_stats (user_id, subject_id, topic_id, attempts_total, correct_total, last_attempt_at, average_score, average_time_sec, updated_at)
-    VALUES (p_user_id, v_subject_id, NULL, 1, v_correct_count, v_finished_at, v_raw_score, v_duration_sec, NOW())
+    VALUES (p_user_id, v_subject_id, NULL, v_total_count, v_correct_count, v_finished_at, v_raw_score, v_duration_sec, NOW())
     ON CONFLICT (user_id, COALESCE(subject_id, 0), COALESCE(topic_id, 0))
     DO UPDATE SET
-        attempts_total = user_stats.attempts_total + 1,
+        attempts_total = user_stats.attempts_total + v_total_count,
         correct_total = user_stats.correct_total + v_correct_count,
         last_attempt_at = GREATEST(COALESCE(user_stats.last_attempt_at, '1970-01-01'::timestamptz), v_finished_at),
         average_score = (

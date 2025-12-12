@@ -76,7 +76,8 @@ other_topics AS (
     ORDER BY accuracy_percentage ASC NULLS LAST, errors_count DESC
 ),
 topics_without_stats AS (
-    -- Темы, по которым нет статистики
+    -- Темы, по которым пользователь еще не отвечал (нет ответов или attempts_total = 0)
+    -- Получаем ВСЕ темы по предмету и исключаем только те, по которым есть ответы (attempts_total > 0)
     SELECT 
         NULL::BIGINT as id,
         @user_id as user_id,
@@ -103,10 +104,13 @@ topics_without_stats AS (
           WHERE user_id = @user_id 
             AND subject_id = @subject_id 
             AND topic_id IS NOT NULL
+            AND attempts_total > 0  -- Исключаем только темы, по которым есть ответы
       )
 )
 -- Объединяем все результаты
-SELECT 
+-- Используем DISTINCT ON для удаления дубликатов по (user_id, subject_id, topic_id)
+-- Приоритет: subject_stats (0) > top_3_errors (1) > other_topics (2) > topics_without_stats (3)
+SELECT DISTINCT ON (user_id, subject_id, COALESCE(topic_id, 0))
     id,
     user_id,
     subject_id,
@@ -132,7 +136,10 @@ FROM (
     SELECT *, 3 as sort_order FROM topics_without_stats
 ) combined
 ORDER BY 
-    combined.sort_order,
+    combined.user_id,
+    combined.subject_id,
+    COALESCE(combined.topic_id, 0),
+    combined.sort_order,  -- Приоритет: статистика > топ-3 > остальные > непопробованные
     combined.errors_count DESC,  -- Внутри топ-3 сортируем по ошибкам
     combined.accuracy_percentage ASC NULLS LAST;  -- Остальные по проценту успешности
 

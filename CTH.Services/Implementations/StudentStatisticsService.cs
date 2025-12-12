@@ -96,20 +96,76 @@ public class StudentStatisticsService : IStudentStatisticsService
             })
             .ToArray();
 
-        // Темы без статистики
-        var unattemptedTopics = stats
-            .Where(s => s.TopicId.HasValue && s.AttemptsTotal == 0)
-            .Select(s => new TopicStatisticsDto
+        // Получаем ВСЕ темы по предмету динамически из базы
+        var getAllTopicsQuery = _sqlQueryProvider.GetQuery("StatisticsUseCases/Queries/GetAllTopicsBySubject");
+        var allTopicsFromDb = await _sqlExecutor.QueryAsync(
+            getAllTopicsQuery,
+            reader => new Topic
             {
-                TopicId = s.TopicId,
-                TopicName = s.Topic?.TopicName ?? "Unknown",
+                Id = reader.GetInt64(reader.GetOrdinal("id")),
+                TopicName = reader.GetString(reader.GetOrdinal("topic_name")),
+                SubjectId = reader.GetInt64(reader.GetOrdinal("subject_id")),
+                IsActive = reader.GetBoolean(reader.GetOrdinal("is_active"))
+            },
+            new[] { new NpgsqlParameter("subject_id", NpgsqlDbType.Bigint) { Value = subjectId } },
+            cancellationToken);
+
+        // Убираем дубликаты по ID сразу после получения из БД
+        var allTopics = allTopicsFromDb
+            .GroupBy(t => t.Id)
+            .Select(g => g.First())
+            .ToList();
+
+        // Собираем ВСЕ темы, по которым есть ответы (attempts_total > 0)
+        // Берем из stats, которые пришли из SQL, но фильтруем только те, где attempts_total > 0
+        var topicsWithAnswers = new HashSet<long>();
+        foreach (var stat in stats)
+        {
+            if (stat.TopicId.HasValue && stat.AttemptsTotal > 0)
+            {
+                topicsWithAnswers.Add(stat.TopicId.Value);
+            }
+        }
+
+        // Также добавляем темы из top3 и other, чтобы быть уверенными
+        foreach (var topic in top3ErrorTopics)
+        {
+            if (topic.TopicId.HasValue)
+            {
+                topicsWithAnswers.Add(topic.TopicId.Value);
+            }
+        }
+        foreach (var topic in otherTopics)
+        {
+            if (topic.TopicId.HasValue)
+            {
+                topicsWithAnswers.Add(topic.TopicId.Value);
+            }
+        }
+
+        _logger.LogInformation("Found {Count} topics with answers for user {UserId}, subject {SubjectId}: {TopicIds}", 
+            topicsWithAnswers.Count, userId, subjectId, string.Join(", ", topicsWithAnswers));
+        _logger.LogInformation("Found {Count} total topics for subject {SubjectId}: {TopicNames}", 
+            allTopics.Count, subjectId, string.Join(", ", allTopics.Select(t => $"{t.Id}:{t.TopicName}")));
+
+        // Темы без ответов = все темы по предмету минус те, по которым есть ответы
+        var unattemptedTopics = allTopics
+            .Where(t => !topicsWithAnswers.Contains(t.Id))
+            .Select(t => new TopicStatisticsDto
+            {
+                TopicId = t.Id,
+                TopicName = t.TopicName,
                 AttemptsTotal = 0,
                 CorrectTotal = 0,
                 ErrorsCount = 0,
                 AccuracyPercentage = null,
                 LastAttemptAt = null
             })
+            .OrderBy(t => t.TopicName)
             .ToArray();
+
+        _logger.LogInformation("Found {Count} unattempted topics: {TopicNames}", 
+            unattemptedTopics.Length, string.Join(", ", unattemptedTopics.Select(t => t.TopicName)));
 
         var result = new SubjectStatisticsDto
         {
