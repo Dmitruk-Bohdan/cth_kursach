@@ -23,6 +23,7 @@ public static class ServiceCollectionExtension
         services.TryAddScoped<ITaskRepository, TaskRepository>();
         services.TryAddScoped<IInvitationCodeRepository, InvitationCodeRepository>();
         services.TryAddScoped<ITeacherStudentRepository, TeacherStudentRepository>();
+        services.TryAddScoped<ITestStudentAccessRepository, TestStudentAccessRepository>();
         services.TryAddScoped<IAttemptRepository, AttemptRepository>();
         services.TryAddScoped<IUserAnswerRepository, UserAnswerRepository>();
         services.TryAddScoped<IUserStatsRepository, UserStatsRepository>();

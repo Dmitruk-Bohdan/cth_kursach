@@ -500,6 +500,147 @@ public sealed class TeacherWebClientApp : IDisposable
         data.IsStateArchive = false;
     }
 
+    private async Task ChangePrivacySettingsAsync(long testId, TestCreationData data)
+    {
+        while (!_cts.IsCancellationRequested)
+        {
+            Console.WriteLine("=== Privacy Settings ===");
+            Console.WriteLine($"Current status: {(data.IsPublic ? "Public" : "Private")}");
+            Console.WriteLine();
+            
+            if (data.IsPublic)
+            {
+                Console.WriteLine("1) Make test private");
+            }
+            else
+            {
+                Console.WriteLine("1) Make test public");
+            }
+            
+            if (!data.IsPublic)
+            {
+                Console.WriteLine("2) Set student IDs with access to this test");
+            }
+            
+            Console.WriteLine("0) Back");
+            Console.Write("Select option: ");
+
+            var choice = Console.ReadLine()?.Trim();
+            Console.WriteLine();
+
+            if (string.IsNullOrWhiteSpace(choice))
+            {
+                Console.WriteLine("Please select an option.");
+                Console.WriteLine();
+                continue;
+            }
+
+            switch (choice)
+            {
+                case "1":
+                    data.IsPublic = !data.IsPublic;
+                    if (data.IsPublic)
+                    {
+                        Console.WriteLine("Test is now public (visible to all students).");
+                        // При переходе в публичный режим удаляем все индивидуальные доступы
+                        await _apiClient.SetTestStudentAccessListAsync(testId, Array.Empty<long>(), _cts.Token);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Test is now private.");
+                    }
+                    Console.WriteLine();
+                    break;
+                case "2":
+                    if (!data.IsPublic)
+                    {
+                        await SetStudentAccessListAsync(testId);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Invalid option.");
+                    }
+                    break;
+                case "0":
+                    return;
+                default:
+                    Console.WriteLine("Unknown option.");
+                    break;
+            }
+        }
+    }
+
+    private async Task SetStudentAccessListAsync(long testId)
+    {
+        Console.WriteLine("=== Set Student Access ===");
+        Console.WriteLine("Enter student IDs separated by spaces (or press Enter to clear all): ");
+        var input = Console.ReadLine()?.Trim();
+        Console.WriteLine();
+
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            // Очищаем все доступы
+            var result = await _apiClient.SetTestStudentAccessListAsync(testId, Array.Empty<long>(), _cts.Token);
+            if (result.Success)
+            {
+                Console.WriteLine("All student access cleared.");
+            }
+            else
+            {
+                Console.WriteLine($"Error: {FormatError(result.Error)}");
+            }
+            Console.WriteLine();
+            return;
+        }
+
+        var studentIdStrings = input.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+        var studentIds = new List<long>();
+
+        foreach (var idString in studentIdStrings)
+        {
+            if (long.TryParse(idString, out var studentId))
+            {
+                studentIds.Add(studentId);
+            }
+            else
+            {
+                Console.WriteLine($"Invalid student ID: {idString}. Skipping.");
+            }
+        }
+
+        if (studentIds.Count == 0)
+        {
+            Console.WriteLine("No valid student IDs provided.");
+            Console.WriteLine();
+            return;
+        }
+
+        Console.WriteLine($"Setting access for {studentIds.Count} student(s)...");
+        var setResult = await _apiClient.SetTestStudentAccessListAsync(testId, studentIds, _cts.Token);
+        
+        if (setResult.Success)
+        {
+            Console.WriteLine("Student access updated successfully.");
+            
+            // Показываем текущий список
+            var getResult = await _apiClient.GetTestStudentAccessAsync(testId, _cts.Token);
+            if (getResult.Success && getResult.Value!.Count > 0)
+            {
+                Console.WriteLine();
+                Console.WriteLine("Students with access:");
+                foreach (var student in getResult.Value!)
+                {
+                    Console.WriteLine($"  - {student.UserName} (ID: {student.Id}, Email: {student.Email})");
+                }
+            }
+        }
+        else
+        {
+            Console.WriteLine($"Error: {FormatError(setResult.Error)}");
+        }
+        Console.WriteLine();
+    }
+
     private async Task AddTaskAsync(TestCreationData data)
     {
         Console.WriteLine();
@@ -1336,7 +1477,7 @@ public sealed class TeacherWebClientApp : IDisposable
                     PublishTest(testData);
                     break;
                 case "6":
-                    SetPrivacySettings(testData);
+                    await ChangePrivacySettingsAsync(testId, testData);
                     break;
                 case "7":
                     await AddTaskAsync(testData);

@@ -435,6 +435,77 @@ public sealed class ApiClient : IDisposable
         return Result.Fail(error);
     }
 
+    public async Task<Result<IReadOnlyCollection<StudentAccessItem>>> GetTestStudentAccessAsync(long testId, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.GetAsync($"/teacher/tests/{testId}/access/students", cancellationToken);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync(cancellationToken);
+            return Result<IReadOnlyCollection<StudentAccessItem>>.Fail(error);
+        }
+
+        try
+        {
+            var responseModel = await response.Content.ReadFromJsonAsync<ResponseModel<List<StudentAccessItem>>>(_jsonOptions, cancellationToken);
+            if (responseModel != null && responseModel.Success && responseModel.Result != null)
+            {
+                return Result<IReadOnlyCollection<StudentAccessItem>>.Ok(responseModel.Result);
+            }
+        }
+        catch
+        {
+        }
+
+        var students = await response.Content.ReadFromJsonAsync<List<StudentAccessItem>>(_jsonOptions, cancellationToken);
+        if (students == null)
+        {
+            return Result<IReadOnlyCollection<StudentAccessItem>>.Fail("Failed to parse response.");
+        }
+
+        return Result<IReadOnlyCollection<StudentAccessItem>>.Ok(students);
+    }
+
+    public async Task<Result> AddTestStudentAccessAsync(long testId, long studentId, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.PostAsync($"/teacher/tests/{testId}/access/students/{studentId}", null, cancellationToken);
+        
+        if (response.IsSuccessStatusCode)
+        {
+            return Result.Ok();
+        }
+
+        var error = await response.Content.ReadAsStringAsync(cancellationToken);
+        return Result.Fail(error);
+    }
+
+    public async Task<Result> RemoveTestStudentAccessAsync(long testId, long studentId, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.DeleteAsync($"/teacher/tests/{testId}/access/students/{studentId}", cancellationToken);
+        
+        if (response.IsSuccessStatusCode)
+        {
+            return Result.Ok();
+        }
+
+        var error = await response.Content.ReadAsStringAsync(cancellationToken);
+        return Result.Fail(error);
+    }
+
+    public async Task<Result> SetTestStudentAccessListAsync(long testId, IReadOnlyCollection<long> studentIds, CancellationToken cancellationToken)
+    {
+        var request = new SetStudentAccessRequest { StudentIds = studentIds };
+        var response = await _httpClient.PutAsJsonAsync($"/teacher/tests/{testId}/access/students", request, _jsonOptions, cancellationToken);
+        
+        if (response.IsSuccessStatusCode)
+        {
+            return Result.Ok();
+        }
+
+        var error = await response.Content.ReadAsStringAsync(cancellationToken);
+        return Result.Fail(error);
+    }
+
     private async Task<Result<T>> ReadResponseModelAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode)
@@ -563,6 +634,17 @@ public sealed class ApiClient : IDisposable
         string UserName,
         string Email,
         DateTimeOffset? EstablishedAt);
+
+    public sealed record StudentAccessItem(
+        long Id,
+        string UserName,
+        string Email,
+        DateTimeOffset CreatedAt);
+
+    private sealed record SetStudentAccessRequest
+    {
+        public IReadOnlyCollection<long> StudentIds { get; init; } = Array.Empty<long>();
+    }
 
     // Класс для десериализации ответа API
     public sealed class TestDetailsDto
