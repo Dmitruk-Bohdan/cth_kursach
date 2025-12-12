@@ -5,7 +5,7 @@ namespace CTH.Services.Interfaces;
 
 public interface IStudentStatisticsService
 {
-    Task<HttpOperationResult<IReadOnlyCollection<UserStatisticsDto>>> GetStatisticsBySubjectAsync(long userId, long? subjectId, CancellationToken cancellationToken);
-    Task<HttpOperationResult<IReadOnlyCollection<UserStatisticsDto>>> GetStatisticsByTopicAsync(long userId, long? subjectId, CancellationToken cancellationToken);
+    Task<HttpOperationResult<IReadOnlyCollection<SubjectDto>>> GetAllSubjectsAsync(CancellationToken cancellationToken);
+    Task<HttpOperationResult<SubjectStatisticsDto>> GetSubjectStatisticsAsync(long userId, long subjectId, CancellationToken cancellationToken);
 }
 

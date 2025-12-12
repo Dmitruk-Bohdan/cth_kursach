@@ -84,21 +84,25 @@ BEGIN
         WHERE ua.attempt_id = p_attempt_id
           AND ti.topic_id IS NOT NULL
     LOOP
-        -- Подсчитываем правильные ответы по теме в этой попытке
+        -- Подсчитываем общее количество заданий и правильные ответы по теме в этой попытке
         SELECT 
+            COUNT(*),
             COUNT(*) FILTER (WHERE ua.is_correct = TRUE)
-        INTO v_correct_count
+        INTO 
+            v_total_count,
+            v_correct_count
         FROM user_answer ua
         JOIN task_item ti ON ti.id = ua.task_id
         WHERE ua.attempt_id = p_attempt_id
           AND ti.topic_id = v_topic_id;
         
         -- Обновляем статистику по теме
+        -- attempts_total - это количество заданий (tasks), а не попыток (attempts)
         INSERT INTO user_stats (user_id, subject_id, topic_id, attempts_total, correct_total, last_attempt_at, average_score, average_time_sec, updated_at)
-        VALUES (p_user_id, v_subject_id, v_topic_id, 1, v_correct_count, v_finished_at, NULL, NULL, NOW())
+        VALUES (p_user_id, v_subject_id, v_topic_id, v_total_count, v_correct_count, v_finished_at, NULL, NULL, NOW())
         ON CONFLICT (user_id, COALESCE(subject_id, 0), COALESCE(topic_id, 0))
         DO UPDATE SET
-            attempts_total = user_stats.attempts_total + 1,
+            attempts_total = user_stats.attempts_total + v_total_count,
             correct_total = user_stats.correct_total + v_correct_count,
             last_attempt_at = GREATEST(COALESCE(user_stats.last_attempt_at, '1970-01-01'::timestamptz), v_finished_at),
             updated_at = NOW();

@@ -155,24 +155,22 @@ public sealed class ApiClient : IDisposable
             : Result<IReadOnlyCollection<AttemptListItem>>.Fail(wrapped.Error ?? "Не удалось получить список попыток.");
     }
 
-    public async Task<Result<IReadOnlyCollection<UserStatistics>>> GetStatisticsBySubjectAsync(long? subjectId, CancellationToken cancellationToken)
+    public async Task<Result<IReadOnlyCollection<SubjectListItem>>> GetAllSubjectsAsync(CancellationToken cancellationToken)
     {
-        var queryString = subjectId.HasValue ? $"?subjectId={subjectId.Value}" : "";
-        var response = await _httpClient.GetAsync($"/student/statistics/by-subject{queryString}", cancellationToken);
-        var wrapped = await ReadResponseModelAsync<List<UserStatistics>>(response, cancellationToken);
+        var response = await _httpClient.GetAsync("/student/statistics/subjects", cancellationToken);
+        var wrapped = await ReadResponseModelAsync<List<SubjectListItem>>(response, cancellationToken);
         return wrapped.Success
-            ? Result<IReadOnlyCollection<UserStatistics>>.Ok(wrapped.Value!)
-            : Result<IReadOnlyCollection<UserStatistics>>.Fail(wrapped.Error ?? "Failed to get statistics.");
+            ? Result<IReadOnlyCollection<SubjectListItem>>.Ok(wrapped.Value!)
+            : Result<IReadOnlyCollection<SubjectListItem>>.Fail(wrapped.Error ?? "Failed to get subjects.");
     }
 
-    public async Task<Result<IReadOnlyCollection<UserStatistics>>> GetStatisticsByTopicAsync(long? subjectId, CancellationToken cancellationToken)
+    public async Task<Result<SubjectStatistics>> GetSubjectStatisticsAsync(long subjectId, CancellationToken cancellationToken)
     {
-        var queryString = subjectId.HasValue ? $"?subjectId={subjectId.Value}" : "";
-        var response = await _httpClient.GetAsync($"/student/statistics/by-topic{queryString}", cancellationToken);
-        var wrapped = await ReadResponseModelAsync<List<UserStatistics>>(response, cancellationToken);
+        var response = await _httpClient.GetAsync($"/student/statistics/subject/{subjectId}", cancellationToken);
+        var wrapped = await ReadResponseModelAsync<SubjectStatistics>(response, cancellationToken);
         return wrapped.Success
-            ? Result<IReadOnlyCollection<UserStatistics>>.Ok(wrapped.Value!)
-            : Result<IReadOnlyCollection<UserStatistics>>.Fail(wrapped.Error ?? "Failed to get statistics.");
+            ? Result<SubjectStatistics>.Ok(wrapped.Value!)
+            : Result<SubjectStatistics>.Fail(wrapped.Error ?? "Failed to get statistics.");
     }
 
     private static async Task<Result> ToResult(HttpResponseMessage response, CancellationToken cancellationToken)
@@ -315,7 +313,11 @@ public sealed class ApiClient : IDisposable
 
     public sealed record AttemptListItem(long Id, long TestId, string TestTitle, long SubjectId, string SubjectName, DateTimeOffset StartedAt, DateTimeOffset? FinishedAt, string Status, decimal? RawScore);
 
-    public sealed record UserStatistics(long Id, long? SubjectId, string? SubjectName, long? TopicId, string? TopicName, int AttemptsTotal, int CorrectTotal, decimal? AccuracyPercentage, DateTimeOffset? LastAttemptAt, decimal? AverageScore, int? AverageTimeSec);
+    public sealed record SubjectListItem(long Id, string SubjectCode, string SubjectName);
+
+    public sealed record SubjectStatistics(decimal? OverallAccuracyPercentage, int OverallAttemptsTotal, int OverallCorrectTotal, IReadOnlyCollection<TopicStatistics> Top3ErrorTopics, IReadOnlyCollection<TopicStatistics> OtherTopics, IReadOnlyCollection<TopicStatistics> UnattemptedTopics);
+
+    public sealed record TopicStatistics(long? TopicId, string TopicName, int AttemptsTotal, int CorrectTotal, int ErrorsCount, decimal? AccuracyPercentage, DateTimeOffset? LastAttemptAt);
 
     public class Result
     {

@@ -452,9 +452,121 @@ public sealed class MobileClientApp : IDisposable
 
     private async Task ViewStatisticsAsync()
     {
-        Console.WriteLine("=== Statistics ===");
-        Console.WriteLine("1) Statistics by subject");
-        Console.WriteLine("2) Statistics by topic");
+        // Получаем список предметов
+        var subjectsResult = await _apiClient.GetAllSubjectsAsync(_cts.Token);
+        if (!subjectsResult.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(subjectsResult.Error)}");
+            return;
+        }
+
+        var subjects = subjectsResult.Value!;
+        if (subjects.Count == 0)
+        {
+            Console.WriteLine("No subjects found.");
+            return;
+        }
+
+        // Показываем список предметов для выбора
+        Console.WriteLine("=== Select Subject ===");
+        for (int i = 0; i < subjects.Count; i++)
+        {
+            Console.WriteLine($"{i + 1}) {subjects.ElementAt(i).SubjectName} (ID: {subjects.ElementAt(i).Id})");
+        }
+        Console.Write("Enter subject number: ");
+        var choice = Console.ReadLine();
+        Console.WriteLine();
+
+        if (!int.TryParse(choice, out var subjectIndex) || subjectIndex < 1 || subjectIndex > subjects.Count)
+        {
+            Console.WriteLine("Invalid selection.");
+            return;
+        }
+
+        var selectedSubject = subjects.ElementAt(subjectIndex - 1);
+        await ShowSubjectStatisticsAsync(selectedSubject.Id, selectedSubject.SubjectName);
+    }
+
+    private async Task ShowSubjectStatisticsAsync(long subjectId, string subjectName)
+    {
+        var result = await _apiClient.GetSubjectStatisticsAsync(subjectId, _cts.Token);
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(result.Error)}");
+            return;
+        }
+
+        var stats = result.Value!;
+
+        Console.WriteLine($"=== Statistics for {subjectName} ===");
+        Console.WriteLine();
+
+        // Общий процент успешно решенных заданий по предмету
+        if (stats.OverallAccuracyPercentage.HasValue)
+        {
+            Console.WriteLine($"Overall accuracy: {stats.OverallAccuracyPercentage.Value:F1}%");
+            Console.WriteLine($"Total attempts: {stats.OverallAttemptsTotal}");
+            Console.WriteLine($"Correct answers: {stats.OverallCorrectTotal}");
+        }
+        else
+        {
+            Console.WriteLine("No attempts yet for this subject.");
+        }
+        Console.WriteLine();
+
+        // Топ 3 темы с наибольшим количеством ошибок
+        if (stats.Top3ErrorTopics.Count > 0)
+        {
+            Console.WriteLine("Top 3 topics with most errors:");
+            for (int i = 0; i < stats.Top3ErrorTopics.Count; i++)
+            {
+                var topic = stats.Top3ErrorTopics.ElementAt(i);
+                Console.WriteLine($"  - {topic.TopicName}");
+                Console.WriteLine($"    Errors: {topic.ErrorsCount}");
+                Console.WriteLine($"    Accuracy: {(topic.AccuracyPercentage.HasValue ? $"{topic.AccuracyPercentage.Value:F1}%" : "N/A")}");
+                Console.WriteLine($"    Completed tasks: {topic.AttemptsTotal}");
+                if (i < stats.Top3ErrorTopics.Count - 1)
+                {
+                    Console.WriteLine();
+                }
+            }
+            Console.WriteLine();
+        }
+
+        // Остальные темы, отсортированные по возрастанию процента успешности
+        if (stats.OtherTopics.Count > 0)
+        {
+            Console.WriteLine("Other topics (sorted by accuracy, lowest first):");
+            for (int i = 0; i < stats.OtherTopics.Count; i++)
+            {
+                var topic = stats.OtherTopics.ElementAt(i);
+                Console.WriteLine($"  - {topic.TopicName}");
+                Console.WriteLine($"    Accuracy: {(topic.AccuracyPercentage.HasValue ? $"{topic.AccuracyPercentage.Value:F1}%" : "N/A")}");
+                Console.WriteLine($"    Errors: {topic.ErrorsCount}");
+                Console.WriteLine($"    Completed tasks: {topic.AttemptsTotal}");
+                if (i < stats.OtherTopics.Count - 1)
+                {
+                    Console.WriteLine();
+                }
+            }
+            Console.WriteLine();
+        }
+
+        // Темы, по которым еще не решал тесты
+        if (stats.UnattemptedTopics.Count > 0)
+        {
+            Console.WriteLine("Topics not yet attempted:");
+            foreach (var topic in stats.UnattemptedTopics)
+            {
+                Console.WriteLine($"  - {topic.TopicName}");
+            }
+            Console.WriteLine();
+        }
+
+        // Контекстное меню
+        Console.WriteLine("Options:");
+        Console.WriteLine("1) Create custom test for problematic topics");
+        Console.WriteLine("0) Back to menu");
         Console.Write("Choose option: ");
         var choice = Console.ReadLine();
         Console.WriteLine();
@@ -462,111 +574,15 @@ public sealed class MobileClientApp : IDisposable
         switch (choice)
         {
             case "1":
-                await ViewStatisticsBySubjectAsync();
+                Console.WriteLine("This feature will be implemented later.");
+                Console.WriteLine("Press Enter to continue...");
+                Console.ReadLine();
                 break;
-            case "2":
-                await ViewStatisticsByTopicAsync();
+            case "0":
                 break;
             default:
                 Console.WriteLine("Unknown option.");
                 break;
-        }
-    }
-
-    private async Task ViewStatisticsBySubjectAsync()
-    {
-        Console.Write("Enter subject ID (or press Enter for all subjects): ");
-        var subjectIdInput = Console.ReadLine();
-        long? subjectId = null;
-        if (!string.IsNullOrWhiteSpace(subjectIdInput) && long.TryParse(subjectIdInput, out var parsedId))
-        {
-            subjectId = parsedId;
-        }
-
-        var result = await _apiClient.GetStatisticsBySubjectAsync(subjectId, _cts.Token);
-        if (!result.Success)
-        {
-            Console.WriteLine($"Error: {FormatError(result.Error)}");
-            return;
-        }
-
-        var statistics = result.Value!;
-        if (statistics.Count == 0)
-        {
-            Console.WriteLine("No statistics found.");
-            return;
-        }
-
-        Console.WriteLine($"=== Statistics by Subject ===");
-        foreach (var stat in statistics)
-        {
-            Console.WriteLine($"Subject: {stat.SubjectName ?? "Unknown"}");
-            Console.WriteLine($"  Attempts: {stat.AttemptsTotal}");
-            Console.WriteLine($"  Correct answers: {stat.CorrectTotal}");
-            if (stat.AccuracyPercentage.HasValue)
-            {
-                Console.WriteLine($"  Accuracy: {stat.AccuracyPercentage.Value:F1}%");
-            }
-            if (stat.AverageScore.HasValue)
-            {
-                Console.WriteLine($"  Average score: {stat.AverageScore.Value:F2}");
-            }
-            if (stat.AverageTimeSec.HasValue)
-            {
-                Console.WriteLine($"  Average time: {stat.AverageTimeSec.Value / 60.0:F1} minutes");
-            }
-            if (stat.LastAttemptAt.HasValue)
-            {
-                Console.WriteLine($"  Last attempt: {stat.LastAttemptAt.Value:yyyy-MM-dd HH:mm:ss}");
-            }
-            Console.WriteLine();
-        }
-    }
-
-    private async Task ViewStatisticsByTopicAsync()
-    {
-        Console.Write("Enter subject ID (or press Enter for all subjects): ");
-        var subjectIdInput = Console.ReadLine();
-        long? subjectId = null;
-        if (!string.IsNullOrWhiteSpace(subjectIdInput) && long.TryParse(subjectIdInput, out var parsedId))
-        {
-            subjectId = parsedId;
-        }
-
-        var result = await _apiClient.GetStatisticsByTopicAsync(subjectId, _cts.Token);
-        if (!result.Success)
-        {
-            Console.WriteLine($"Error: {FormatError(result.Error)}");
-            return;
-        }
-
-        var statistics = result.Value!;
-        if (statistics.Count == 0)
-        {
-            Console.WriteLine("No statistics found.");
-            return;
-        }
-
-        Console.WriteLine($"=== Statistics by Topic ===");
-        var groupedBySubject = statistics.GroupBy(s => s.SubjectName ?? "Unknown");
-        foreach (var subjectGroup in groupedBySubject)
-        {
-            Console.WriteLine($"Subject: {subjectGroup.Key}");
-            foreach (var stat in subjectGroup)
-            {
-                Console.WriteLine($"  Topic: {stat.TopicName ?? "Unknown"}");
-                Console.WriteLine($"    Attempts: {stat.AttemptsTotal}");
-                Console.WriteLine($"    Correct answers: {stat.CorrectTotal}");
-                if (stat.AccuracyPercentage.HasValue)
-                {
-                    Console.WriteLine($"    Accuracy: {stat.AccuracyPercentage.Value:F1}%");
-                }
-                if (stat.LastAttemptAt.HasValue)
-                {
-                    Console.WriteLine($"    Last attempt: {stat.LastAttemptAt.Value:yyyy-MM-dd HH:mm:ss}");
-                }
-            }
-            Console.WriteLine();
         }
     }
 

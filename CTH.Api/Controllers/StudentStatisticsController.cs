@@ -1,6 +1,9 @@
+using CTH.Services.Extensions;
 using CTH.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PropTechPeople.Services.Models.ResultApiModels;
+using System.Security.Claims;
 
 namespace CTH.Api.Controllers;
 
@@ -18,35 +21,34 @@ public class StudentStatisticsController : ControllerBase
 
     private long GetCurrentUserId()
     {
-        var userIdClaim = User.FindFirst("user_id");
-        if (userIdClaim == null || !long.TryParse(userIdClaim.Value, out var userId))
+        var claim = User.FindFirst("Id") ?? User.FindFirst(ClaimTypes.NameIdentifier);
+        if (claim == null || !long.TryParse(claim.Value, out var userId))
         {
-            throw new UnauthorizedAccessException("User ID not found in token");
+            throw new InvalidOperationException("Cannot resolve current user id.");
         }
         return userId;
     }
 
-    [HttpGet("by-subject")]
-    public async Task<IActionResult> GetStatisticsBySubject([FromQuery] long? subjectId, CancellationToken cancellationToken)
+    [HttpGet("subjects")]
+    public async Task<IActionResult> GetAllSubjects(CancellationToken cancellationToken)
     {
-        var userId = GetCurrentUserId();
-        var result = await _statisticsService.GetStatisticsBySubjectAsync(userId, subjectId, cancellationToken);
+        var result = await _statisticsService.GetAllSubjectsAsync(cancellationToken);
         if (!result.IsSuccessful)
         {
-            return result.ToActionResult();
+            return ((HttpOperationResult)result).ToActionResult();
         }
 
         return Ok(result.Result);
     }
 
-    [HttpGet("by-topic")]
-    public async Task<IActionResult> GetStatisticsByTopic([FromQuery] long? subjectId, CancellationToken cancellationToken)
+    [HttpGet("subject/{subjectId:long}")]
+    public async Task<IActionResult> GetSubjectStatistics(long subjectId, CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
-        var result = await _statisticsService.GetStatisticsByTopicAsync(userId, subjectId, cancellationToken);
+        var result = await _statisticsService.GetSubjectStatisticsAsync(userId, subjectId, cancellationToken);
         if (!result.IsSuccessful)
         {
-            return result.ToActionResult();
+            return ((HttpOperationResult)result).ToActionResult();
         }
 
         return Ok(result.Result);

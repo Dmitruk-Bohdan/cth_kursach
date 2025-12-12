@@ -6,5 +6,6 @@ public interface IUserStatsRepository
 {
     Task<IReadOnlyCollection<UserStats>> GetStatisticsBySubjectAsync(long userId, long? subjectId, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<UserStats>> GetStatisticsByTopicAsync(long userId, long? subjectId, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<UserStats>> GetSubjectStatisticsWithTopicsAsync(long userId, long subjectId, CancellationToken cancellationToken);
 }
 
