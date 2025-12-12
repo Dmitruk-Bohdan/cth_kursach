@@ -8,6 +8,8 @@ INSERT INTO test
     attempts_allowed,
     mode,
     is_published,
+    is_public,
+    is_state_archive,
     created_at,
     updated_at
 )
@@ -21,6 +23,8 @@ VALUES
     @attempts_allowed,
     @mode,
     @is_published,
+    @is_public,
+    @is_state_archive,
     NOW(),
     NOW()
 )

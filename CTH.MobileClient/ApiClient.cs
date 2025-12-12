@@ -62,9 +62,43 @@ public sealed class ApiClient : IDisposable
         return Result<LoginResponse>.Ok(login);
     }
 
-    public async Task<Result<IReadOnlyCollection<TestListItem>>> GetPublishedTestsAsync(long? subjectId, CancellationToken cancellationToken)
+    public async Task<Result<IReadOnlyCollection<TestListItem>>> GetPublishedTestsAsync(
+        long? subjectId = null,
+        bool onlyTeachers = false,
+        bool onlyStateArchive = false,
+        bool onlyLimitedAttempts = false,
+        string? title = null,
+        string? mode = null,
+        CancellationToken cancellationToken = default)
     {
-        var uri = subjectId.HasValue ? $"/student/tests?subjectId={subjectId}" : "/student/tests";
+        var queryParams = new List<string>();
+        if (subjectId.HasValue)
+        {
+            queryParams.Add($"subjectId={subjectId.Value}");
+        }
+        if (onlyTeachers)
+        {
+            queryParams.Add("onlyTeachers=true");
+        }
+        if (onlyStateArchive)
+        {
+            queryParams.Add("onlyStateArchive=true");
+        }
+        if (onlyLimitedAttempts)
+        {
+            queryParams.Add("onlyLimitedAttempts=true");
+        }
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            queryParams.Add($"title={Uri.EscapeDataString(title)}");
+        }
+        if (!string.IsNullOrWhiteSpace(mode))
+        {
+            queryParams.Add($"mode={Uri.EscapeDataString(mode)}");
+        }
+
+        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "";
+        var uri = $"/student/tests{queryString}";
         var response = await _httpClient.GetAsync(uri, cancellationToken);
         var wrapped = await ReadResponseModelAsync<List<TestListItem>>(response, cancellationToken);
         return wrapped.Success
@@ -295,7 +329,7 @@ public sealed class ApiClient : IDisposable
 
     public sealed record LoginResponse(string AccessToken, string UserName);
 
-    public sealed record TestListItem(long Id, string Title, string TestKind, long SubjectId, string SubjectName, int? TimeLimitSec, short? AttemptsAllowed, bool IsPublic, bool IsStateArchive);
+    public sealed record TestListItem(long Id, string Title, string TestKind, long SubjectId, string SubjectName, int? TimeLimitSec, short? AttemptsAllowed, bool IsPublic, bool IsStateArchive, string? Mode);
 
     public sealed record TestDetails(long Id, string Title, string TestKind, long SubjectId, string SubjectName, int? TimeLimitSec, short? AttemptsAllowed, bool IsPublic, bool IsStateArchive, IReadOnlyCollection<TestTask> Tasks);
 
@@ -318,6 +352,69 @@ public sealed class ApiClient : IDisposable
     public sealed record SubjectStatistics(decimal? OverallAccuracyPercentage, int OverallAttemptsTotal, int OverallCorrectTotal, IReadOnlyCollection<TopicStatistics> Top3ErrorTopics, IReadOnlyCollection<TopicStatistics> OtherTopics, IReadOnlyCollection<TopicStatistics> UnattemptedTopics);
 
     public sealed record TopicStatistics(long? TopicId, string TopicName, int AttemptsTotal, int CorrectTotal, int ErrorsCount, decimal? AccuracyPercentage, DateTimeOffset? LastAttemptAt);
+
+    public async Task<Result<Recommendations>> GetRecommendationsAsync(long subjectId, int? criticalThreshold, CancellationToken cancellationToken)
+    {
+        var url = $"/student/recommendations/subject/{subjectId}";
+        if (criticalThreshold.HasValue)
+        {
+            url += $"?criticalThreshold={criticalThreshold.Value}";
+        }
+        var response = await _httpClient.GetAsync(url, cancellationToken);
+        var wrapped = await ReadResponseModelAsync<Recommendations>(response, cancellationToken);
+        return wrapped.Success
+            ? Result<Recommendations>.Ok(wrapped.Value!)
+            : Result<Recommendations>.Fail(wrapped.Error ?? "Failed to get recommendations.");
+    }
+
+    public async Task<Result> UpdateCriticalThresholdAsync(int threshold, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.PutAsJsonAsync("/student/recommendations/critical-threshold", new { Threshold = threshold }, cancellationToken);
+        return await ToResult(response, cancellationToken);
+    }
+
+    public async Task<Result<TeacherItem>> JoinTeacherByCodeAsync(string invitationCode, CancellationToken cancellationToken)
+    {
+        var request = new JoinTeacherRequest(invitationCode);
+        var response = await _httpClient.PostAsJsonAsync("/student/teachers/join", request, _jsonOptions, cancellationToken);
+        return await ReadResponseModelAsync<TeacherItem>(response, cancellationToken);
+    }
+
+    public async Task<Result<IReadOnlyCollection<TeacherItem>>> GetMyTeachersAsync(CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.GetAsync("/student/teachers", cancellationToken);
+        var wrapped = await ReadResponseModelAsync<List<TeacherItem>>(response, cancellationToken);
+        return wrapped.Success
+            ? Result<IReadOnlyCollection<TeacherItem>>.Ok(wrapped.Value!)
+            : Result<IReadOnlyCollection<TeacherItem>>.Fail(wrapped.Error ?? "Не удалось получить список учителей.");
+    }
+
+    public async Task<Result> RemoveTeacherAsync(long teacherId, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.DeleteAsync($"/student/teachers/{teacherId}", cancellationToken);
+        return await ToResult(response, cancellationToken);
+    }
+
+    public sealed record JoinTeacherRequest(string InvitationCode);
+
+    public sealed record TeacherItem(long Id, string UserName, string Email, DateTimeOffset? EstablishedAt);
+
+    public sealed record Recommendations(
+        IReadOnlyCollection<TopicRecommendation> CriticalTopics,
+        IReadOnlyCollection<TopicRecommendation> LeitnerTopics,
+        IReadOnlyCollection<TopicRecommendation> UnstudiedTopics,
+        int CriticalThreshold);
+
+    public sealed record TopicRecommendation(
+        long TopicId,
+        string TopicName,
+        string? TopicCode,
+        int? AttemptsTotal,
+        int? CorrectTotal,
+        decimal? AccuracyPercentage,
+        DateTimeOffset? LastAttemptAt,
+        int? SuccessfulRepetitions,
+        int? RepetitionIntervalDays);
 
     public class Result
     {

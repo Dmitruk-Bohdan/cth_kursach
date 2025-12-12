@@ -1,4 +1,5 @@
-﻿using CTH.Services.Extensions;
+﻿using CTH.Database.Models;
+using CTH.Services.Extensions;
 using CTH.Services.Interfaces;
 using CTH.Services.Models.Dto.Attempts;
 using Microsoft.AspNetCore.Authorization;
@@ -24,9 +25,27 @@ public class StudentTestsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetPublishedTests([FromQuery] long? subjectId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetPublishedTests(
+        [FromQuery] long? subjectId,
+        [FromQuery] bool onlyTeachers = false,
+        [FromQuery] bool onlyStateArchive = false,
+        [FromQuery] bool onlyLimitedAttempts = false,
+        [FromQuery] string? title = null,
+        [FromQuery] string? mode = null,
+        CancellationToken cancellationToken = default)
     {
-        var tests = await _studentTestService.GetPublishedTestsAsync(subjectId, cancellationToken);
+        var userId = GetCurrentUserId();
+        var filter = new TestListFilter
+        {
+            SubjectId = subjectId,
+            OnlyTeachers = onlyTeachers,
+            OnlyStateArchive = onlyStateArchive,
+            OnlyLimitedAttempts = onlyLimitedAttempts,
+            TitlePattern = title,
+            Mode = mode
+        };
+
+        var tests = await _studentTestService.GetPublishedTestsAsync(userId, filter, cancellationToken);
         return Ok(tests);
     }
 

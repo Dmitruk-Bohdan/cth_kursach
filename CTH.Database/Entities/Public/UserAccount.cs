@@ -18,7 +18,6 @@ public sealed class UserAccount
     public ICollection<Assignment> AssignmentsAsTeacher { get; set; } = new List<Assignment>();
     public ICollection<Assignment> AssignmentsAsStudent { get; set; } = new List<Assignment>();
     public ICollection<Attempt> Attempts { get; set; } = new List<Attempt>();
-    public ICollection<Recommendation> Recommendations { get; set; } = new List<Recommendation>();
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
     public ICollection<UserStats> UserStats { get; set; } = new List<UserStats>();

@@ -1,8 +1,13 @@
 ﻿using CTH.Common.Enums;
+using CTH.Database.Abstractions;
 using CTH.Database.Entities.Public;
 using CTH.Database.Repositories.Interfaces;
 using CTH.Services.Interfaces;
+using CTH.Services.Models.Dto.Tasks;
 using CTH.Services.Models.Dto.Tests;
+using Microsoft.Extensions.Logging;
+using Npgsql;
+using NpgsqlTypes;
 using PropTechPeople.Services.Models.ResultApiModels;
 using System.Net;
 using System.Linq;
@@ -12,10 +17,20 @@ namespace CTH.Services.Implementations;
 public class TeacherTestService : ITeacherTestService
 {
     private readonly ITestRepository _testRepository;
+    private readonly ITaskRepository _taskRepository;
+    private readonly ISqlExecutor _sqlExecutor;
+    private readonly ISqlQueryProvider _sqlQueryProvider;
 
-    public TeacherTestService(ITestRepository testRepository)
+    public TeacherTestService(
+        ITestRepository testRepository, 
+        ITaskRepository taskRepository,
+        ISqlExecutor sqlExecutor,
+        ISqlQueryProvider sqlQueryProvider)
     {
         _testRepository = testRepository;
+        _taskRepository = taskRepository;
+        _sqlExecutor = sqlExecutor;
+        _sqlQueryProvider = sqlQueryProvider;
     }
 
     public async Task<HttpOperationResult<TestDetailsDto>> CreateTestAsync(long userId, bool isAdmin, CreateTestRequestDto request, CancellationToken cancellationToken)
@@ -218,6 +233,8 @@ public class TeacherTestService : ITeacherTestService
             SubjectId = existing.SubjectId,
             TimeLimitSec = existing.TimeLimitSec,
             AttemptsAllowed = existing.AttemptsAllowed,
+            Mode = existing.Mode,
+            IsPublished = existing.IsPublished,
             IsPublic = existing.IsPublic,
             IsStateArchive = existing.IsStateArchive,
             Tasks = tasks.Select(t => new TestTaskDto
@@ -232,6 +249,133 @@ public class TeacherTestService : ITeacherTestService
         };
 
         return new HttpOperationResult<TestDetailsDto>(dto, HttpStatusCode.OK);
+    }
+
+    public async Task<HttpOperationResult<IReadOnlyCollection<TestListItemDto>>> GetMyTestsAsync(long userId, long subjectId, CancellationToken cancellationToken)
+    {
+        var tests = await _testRepository.GetTestsByAuthorAndSubjectAsync(userId, subjectId, cancellationToken);
+        var dtos = tests.Select(t => new TestListItemDto
+        {
+            Id = t.Id,
+            Title = t.Title,
+            TestKind = t.TestKind,
+            SubjectId = t.SubjectId,
+            TimeLimitSec = t.TimeLimitSec,
+            AttemptsAllowed = t.AttemptsAllowed,
+            IsPublic = t.IsPublic,
+            IsStateArchive = t.IsStateArchive,
+            Mode = t.Mode
+        }).ToArray();
+
+        return new HttpOperationResult<IReadOnlyCollection<TestListItemDto>>(dtos, HttpStatusCode.OK);
+    }
+
+    public async Task<HttpOperationResult<IReadOnlyCollection<TaskListItemDto>>> GetTasksBySubjectAsync(long subjectId, string? searchQuery, CancellationToken cancellationToken)
+    {
+        var tasks = await _taskRepository.GetTasksBySubjectAsync(subjectId, searchQuery, cancellationToken);
+        
+        var dto = tasks.Select(t => new TaskListItemDto
+        {
+            Id = t.Id,
+            SubjectId = t.SubjectId,
+            TopicId = t.TopicId,
+            TopicName = t.Topic?.TopicName,
+            TopicCode = t.Topic?.TopicCode,
+            TaskType = t.TaskType,
+            Difficulty = t.Difficulty,
+            Statement = t.Statement,
+            Explanation = t.Explanation
+        }).ToArray();
+
+        return new HttpOperationResult<IReadOnlyCollection<TaskListItemDto>>(dto, HttpStatusCode.OK);
+    }
+
+    public async Task<HttpOperationResult<TaskListItemDto>> CreateTaskAsync(long userId, bool isAdmin, CreateTaskRequestDto request, CancellationToken cancellationToken)
+    {
+        // Валидация
+        if (request.Difficulty < 1 || request.Difficulty > 5)
+        {
+            return new HttpOperationResult<TaskListItemDto>
+            {
+                Status = HttpStatusCode.BadRequest,
+                Error = "Difficulty must be between 1 and 5"
+            };
+        }
+
+        var validTaskTypes = new[] { "numeric", "text" };
+        if (!validTaskTypes.Contains(request.TaskType.ToLower()))
+        {
+            return new HttpOperationResult<TaskListItemDto>
+            {
+                Status = HttpStatusCode.BadRequest,
+                Error = $"Task type must be one of: {string.Join(", ", validTaskTypes)}"
+            };
+        }
+
+        var newTask = new TaskItem
+        {
+            SubjectId = request.SubjectId,
+            TopicId = request.TopicId,
+            TaskType = request.TaskType.ToLower(),
+            Difficulty = request.Difficulty,
+            Statement = request.Statement,
+            CorrectAnswer = request.CorrectAnswer,
+            Explanation = request.Explanation,
+            IsActive = request.IsActive
+        };
+
+        var taskId = await _taskRepository.CreateAsync(newTask, cancellationToken);
+
+        // Получаем созданное задание для возврата
+        var tasks = await _taskRepository.GetTasksBySubjectAsync(request.SubjectId, taskId.ToString(), cancellationToken);
+        var createdTask = tasks.FirstOrDefault(t => t.Id == taskId);
+
+        if (createdTask == null)
+        {
+            return new HttpOperationResult<TaskListItemDto>
+            {
+                Status = HttpStatusCode.InternalServerError,
+                Error = "Failed to retrieve created task"
+            };
+        }
+
+        var dto = new TaskListItemDto
+        {
+            Id = createdTask.Id,
+            SubjectId = createdTask.SubjectId,
+            TopicId = createdTask.TopicId,
+            TopicName = createdTask.Topic?.TopicName,
+            TopicCode = createdTask.Topic?.TopicCode,
+            TaskType = createdTask.TaskType,
+            Difficulty = createdTask.Difficulty,
+            Statement = createdTask.Statement,
+            Explanation = createdTask.Explanation
+        };
+
+        return new HttpOperationResult<TaskListItemDto>(dto, HttpStatusCode.Created);
+    }
+
+    public async Task<HttpOperationResult<IReadOnlyCollection<TopicListItemDto>>> GetTopicsBySubjectAsync(long subjectId, CancellationToken cancellationToken)
+    {
+        var query = _sqlQueryProvider.GetQuery("StatisticsUseCases/Queries/GetAllTopicsBySubject");
+        var parameters = new[]
+        {
+            new NpgsqlParameter("subject_id", NpgsqlDbType.Bigint) { Value = subjectId }
+        };
+
+        var topics = await _sqlExecutor.QueryAsync(
+            query,
+            reader => new TopicListItemDto
+            {
+                Id = reader.GetInt64(reader.GetOrdinal("id")),
+                SubjectId = reader.GetInt64(reader.GetOrdinal("subject_id")),
+                TopicName = reader.GetString(reader.GetOrdinal("topic_name")),
+                TopicCode = reader.IsDBNull(reader.GetOrdinal("topic_code")) ? null : reader.GetString(reader.GetOrdinal("topic_code"))
+            },
+            parameters,
+            cancellationToken);
+
+        return new HttpOperationResult<IReadOnlyCollection<TopicListItemDto>>(topics.ToArray(), HttpStatusCode.OK);
     }
 
     private static bool CanManage(Test test, long userId, bool isAdmin)

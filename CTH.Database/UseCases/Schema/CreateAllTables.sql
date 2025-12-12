@@ -112,6 +112,18 @@ CREATE TABLE IF NOT EXISTS teacher_student
     UNIQUE (teacher_id, student_id)
 );
 
+CREATE TABLE IF NOT EXISTS invitation_code
+(
+    id            BIGSERIAL PRIMARY KEY,
+    teacher_id    BIGINT      NOT NULL REFERENCES user_account (id),
+    code          VARCHAR(36) NOT NULL UNIQUE,  -- GUID format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+    max_uses      INTEGER DEFAULT NULL,
+    used_count    INTEGER DEFAULT 0,
+    expires_at    TIMESTAMPTZ,
+    status        VARCHAR(20) NOT NULL DEFAULT 'active',
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS assignment
 (
     id               BIGSERIAL PRIMARY KEY,
@@ -169,18 +181,6 @@ CREATE TABLE IF NOT EXISTS user_stats
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, COALESCE(subject_id, 0), COALESCE(topic_id, 0))
-);
-
-CREATE TABLE IF NOT EXISTS recommendation
-(
-    id          BIGSERIAL PRIMARY KEY,
-    user_id     BIGINT      NOT NULL REFERENCES user_account (id),
-    subject_id  BIGINT      NOT NULL REFERENCES subject (id),
-    topic_id    BIGINT      NOT NULL REFERENCES topic (id),
-    priority    SMALLINT    NOT NULL DEFAULT 1,
-    reason_code VARCHAR(64) NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS notification

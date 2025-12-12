@@ -13,5 +13,4 @@ public sealed class Subject
     public ICollection<TaskItem> Tasks { get; set; } = new List<TaskItem>();
     public ICollection<Test> Tests { get; set; } = new List<Test>();
     public ICollection<UserStats> UserStats { get; set; } = new List<UserStats>();
-    public ICollection<Recommendation> Recommendations { get; set; } = new List<Recommendation>();
 }

@@ -68,6 +68,19 @@ public class TeacherTestsController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetMyTests([FromQuery] long subjectId, CancellationToken cancellationToken)
+    {
+        var (userId, isAdmin) = GetCurrentUser();
+        if (!isAdmin && !IsTeacher())
+        {
+            return Forbid();
+        }
+
+        var result = await _teacherTestService.GetMyTestsAsync(userId, subjectId, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpGet("{testId:long}")]
     public async Task<IActionResult> GetTestDetails(long testId, CancellationToken cancellationToken)
     {
@@ -79,6 +92,48 @@ public class TeacherTestsController : ControllerBase
         }
 
         return Ok(result.Result);
+    }
+
+    [HttpGet("tasks")]
+    public async Task<IActionResult> GetTasksBySubject([FromQuery] long subjectId, [FromQuery] string? search = null, CancellationToken cancellationToken = default)
+    {
+        if (!IsTeacher())
+        {
+            return Forbid();
+        }
+
+        var result = await _teacherTestService.GetTasksBySubjectAsync(subjectId, search, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpPost("tasks")]
+    public async Task<IActionResult> CreateTask([FromBody] CTH.Services.Models.Dto.Tasks.CreateTaskRequestDto request, CancellationToken cancellationToken)
+    {
+        var (userId, isAdmin) = GetCurrentUser();
+        if (!isAdmin && !IsTeacher())
+        {
+            return Forbid();
+        }
+
+        var result = await _teacherTestService.CreateTaskAsync(userId, isAdmin, request, cancellationToken);
+        if (!result.IsSuccessful)
+        {
+            return result.ToActionResult();
+        }
+
+        return CreatedAtAction(nameof(GetTasksBySubject), new { subjectId = request.SubjectId }, result.Result);
+    }
+
+    [HttpGet("topics")]
+    public async Task<IActionResult> GetTopicsBySubject([FromQuery] long subjectId, CancellationToken cancellationToken)
+    {
+        if (!IsTeacher())
+        {
+            return Forbid();
+        }
+
+        var result = await _teacherTestService.GetTopicsBySubjectAsync(subjectId, cancellationToken);
+        return result.ToActionResult();
     }
 
     private (long userId, bool isAdmin) GetCurrentUser()

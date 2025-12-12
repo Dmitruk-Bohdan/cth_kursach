@@ -74,7 +74,9 @@ public sealed class MobileClientApp : IDisposable
         Console.WriteLine("4) Continue interrupted attempt");
         Console.WriteLine("5) View attempt history");
         Console.WriteLine("6) View statistics");
-        Console.WriteLine("7) Logout");
+        Console.WriteLine("7) View recommendations");
+        Console.WriteLine("8) My teachers");
+        Console.WriteLine("9) Logout");
         Console.WriteLine("0) Exit");
         Console.Write("Select option: ");
 
@@ -102,6 +104,12 @@ public sealed class MobileClientApp : IDisposable
                 await ViewStatisticsAsync();
                 break;
             case "7":
+                await ViewRecommendationsAsync();
+                break;
+            case "8":
+                await ShowMyTeachersAsync();
+                break;
+            case "9":
                 await LogoutAsync();
                 break;
             case "0":
@@ -174,17 +182,140 @@ public sealed class MobileClientApp : IDisposable
 
     private async Task ListTestsAsync()
     {
-        var result = await _apiClient.GetPublishedTestsAsync(null, _cts.Token);
+        Console.WriteLine("=== Filter Tests ===");
+        Console.WriteLine("Select filtering options:");
+        Console.WriteLine();
+
+        // Выбор предмета
+        long? subjectId = null;
+        Console.WriteLine("Filter by subject? (y/n): ");
+        if (Console.ReadLine()?.Trim().ToLower() == "y")
+        {
+            var subjectsResult = await _apiClient.GetAllSubjectsAsync(_cts.Token);
+            if (subjectsResult.Success && subjectsResult.Value != null && subjectsResult.Value.Any())
+            {
+                Console.WriteLine("Available subjects:");
+                var subjects = subjectsResult.Value.ToList();
+                for (int i = 0; i < subjects.Count; i++)
+                {
+                    Console.WriteLine($"{i + 1}) {subjects[i].SubjectName}");
+                }
+                Console.Write("Select subject number (or 0 to skip): ");
+                if (int.TryParse(Console.ReadLine(), out var subjectIndex) && subjectIndex > 0 && subjectIndex <= subjects.Count)
+                {
+                    subjectId = subjects[subjectIndex - 1].Id;
+                }
+            }
+        }
+
+        // Только от преподавателей
+        Console.Write("Show only tests from my teachers? (y/n): ");
+        var onlyTeachers = Console.ReadLine()?.Trim().ToLower() == "y";
+
+        // Только государственные
+        Console.Write("Show only state archive tests? (y/n): ");
+        var onlyStateArchive = Console.ReadLine()?.Trim().ToLower() == "y";
+
+        // Только с ограниченным числом попыток
+        Console.Write("Show only tests with limited attempts? (y/n): ");
+        var onlyLimitedAttempts = Console.ReadLine()?.Trim().ToLower() == "y";
+
+        // Поиск по названию
+        Console.Write("Search by title (leave empty to skip): ");
+        var title = Console.ReadLine()?.Trim();
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            title = null;
+        }
+
+        // Фильтр по режиму теста
+        string? mode = null;
+        Console.WriteLine("Filter by test mode? (y/n): ");
+        if (Console.ReadLine()?.Trim().ToLower() == "y")
+        {
+            Console.WriteLine("Select test mode:");
+            Console.WriteLine("1) training - Training mode");
+            Console.WriteLine("2) exam - Exam mode");
+            Console.WriteLine("3) control - Control work mode");
+            Console.Write("Enter option (1-3, or leave empty to skip): ");
+            var modeChoice = Console.ReadLine()?.Trim();
+            mode = modeChoice switch
+            {
+                "1" => "training",
+                "2" => "exam",
+                "3" => "control",
+                _ => null
+            };
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Loading tests...");
+        Console.WriteLine();
+
+        var result = await _apiClient.GetPublishedTestsAsync(
+            subjectId: subjectId,
+            onlyTeachers: onlyTeachers,
+            onlyStateArchive: onlyStateArchive,
+            onlyLimitedAttempts: onlyLimitedAttempts,
+            title: title,
+            mode: mode,
+            cancellationToken: _cts.Token);
+
         if (!result.Success)
         {
             Console.WriteLine($"Error: {FormatError(result.Error)}");
             return;
         }
 
-        Console.WriteLine("Available tests:");
-        foreach (var test in result.Value!)
+        // Показываем активные фильтры
+        var activeFilters = new List<string>();
+        if (subjectId.HasValue)
         {
-            Console.WriteLine($"- #{test.Id}: {test.Title} ({test.TestKind}) | Subject: {FormatSubject(test.SubjectId)} | Public: {test.IsPublic}, State: {test.IsStateArchive}");
+            activeFilters.Add($"Subject: {FormatSubject(subjectId.Value)}");
+        }
+        if (onlyTeachers)
+        {
+            activeFilters.Add("From my teachers");
+        }
+        if (onlyStateArchive)
+        {
+            activeFilters.Add("State archive only");
+        }
+        if (onlyLimitedAttempts)
+        {
+            activeFilters.Add("Limited attempts only");
+        }
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            activeFilters.Add($"Title contains: {title}");
+        }
+        if (!string.IsNullOrWhiteSpace(mode))
+        {
+            activeFilters.Add($"Mode: {mode}");
+        }
+
+        if (activeFilters.Any())
+        {
+            Console.WriteLine($"Active filters: {string.Join(", ", activeFilters)}");
+            Console.WriteLine();
+        }
+
+        var tests = result.Value!;
+        if (!tests.Any())
+        {
+            Console.WriteLine("No tests found matching the criteria.");
+            return;
+        }
+
+        Console.WriteLine($"Found {tests.Count} test(s):");
+        foreach (var test in tests)
+        {
+            var modeInfo = !string.IsNullOrWhiteSpace(test.Mode) ? $" | Mode: {test.Mode}" : "";
+            Console.WriteLine($"- #{test.Id}: {test.Title} ({test.TestKind}){modeInfo} | Subject: {FormatSubject(test.SubjectId)} | Public: {test.IsPublic}, State: {test.IsStateArchive}");
+            if (test.AttemptsAllowed.HasValue)
+            {
+                Console.WriteLine($"  Attempts allowed: {test.AttemptsAllowed}");
+            }
         }
     }
 
@@ -586,6 +717,255 @@ public sealed class MobileClientApp : IDisposable
         }
     }
 
+    private async Task ViewRecommendationsAsync()
+    {
+        // Получаем список предметов
+        var subjectsResult = await _apiClient.GetAllSubjectsAsync(_cts.Token);
+        if (!subjectsResult.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(subjectsResult.Error)}");
+            return;
+        }
+
+        var subjects = subjectsResult.Value!;
+        if (subjects.Count == 0)
+        {
+            Console.WriteLine("No subjects available.");
+            return;
+        }
+
+        Console.WriteLine("=== Select Subject ===");
+        for (int i = 0; i < subjects.Count; i++)
+        {
+            Console.WriteLine($"{i + 1}) {subjects.ElementAt(i).SubjectName} (ID: {subjects.ElementAt(i).Id})");
+        }
+        Console.Write("Enter subject number: ");
+        var subjectInput = Console.ReadLine();
+        Console.WriteLine();
+
+        if (!int.TryParse(subjectInput, out var subjectIndex) || subjectIndex < 1 || subjectIndex > subjects.Count)
+        {
+            Console.WriteLine("Invalid subject number.");
+            return;
+        }
+
+        var selectedSubject = subjects.ElementAt(subjectIndex - 1);
+        await ShowRecommendationsForSubjectAsync(selectedSubject.Id, selectedSubject.SubjectName);
+    }
+
+    private async Task ShowRecommendationsForSubjectAsync(long subjectId, string subjectName)
+    {
+        int criticalThreshold = 80; // По умолчанию
+
+        while (true)
+        {
+            var result = await _apiClient.GetRecommendationsAsync(subjectId, criticalThreshold, _cts.Token);
+            if (!result.Success)
+            {
+                Console.WriteLine($"Error: {FormatError(result.Error)}");
+                return;
+            }
+
+            var recommendations = result.Value!;
+            criticalThreshold = recommendations.CriticalThreshold;
+
+            Console.WriteLine($"=== Recommendations for {subjectName} ===");
+            Console.WriteLine($"Critical threshold: {criticalThreshold}%");
+            Console.WriteLine();
+
+            // 1. Критические темы
+            if (recommendations.CriticalTopics.Count > 0)
+            {
+                Console.WriteLine($"1. Topics with accuracy below {criticalThreshold}% ({recommendations.CriticalTopics.Count}):");
+                for (int i = 0; i < recommendations.CriticalTopics.Count; i++)
+                {
+                    var topic = recommendations.CriticalTopics.ElementAt(i);
+                    Console.WriteLine($"   {i + 1}) {topic.TopicName}");
+                    if (topic.AccuracyPercentage.HasValue)
+                    {
+                        Console.WriteLine($"      Accuracy: {topic.AccuracyPercentage.Value:F1}%");
+                        Console.WriteLine($"      Completed tasks: {topic.AttemptsTotal ?? 0}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"      Not yet attempted");
+                    }
+                }
+                Console.WriteLine();
+            }
+            else
+            {
+                Console.WriteLine($"1. Topics with accuracy below {criticalThreshold}%: None");
+                Console.WriteLine();
+            }
+
+            // 2. Темы для повторения по Лейтнеру
+            if (recommendations.LeitnerTopics.Count > 0)
+            {
+                Console.WriteLine($"2. Topics to review (Leitner system) ({recommendations.LeitnerTopics.Count}):");
+                for (int i = 0; i < recommendations.LeitnerTopics.Count; i++)
+                {
+                    var topic = recommendations.LeitnerTopics.ElementAt(i);
+                    Console.WriteLine($"   {i + 1}) {topic.TopicName}");
+                    if (topic.SuccessfulRepetitions.HasValue)
+                    {
+                        Console.WriteLine($"      Successful repetitions: {topic.SuccessfulRepetitions}");
+                    }
+                    if (topic.RepetitionIntervalDays.HasValue)
+                    {
+                        Console.WriteLine($"      Review interval: {topic.RepetitionIntervalDays} days");
+                    }
+                    if (topic.LastAttemptAt.HasValue)
+                    {
+                        var daysAgo = (DateTimeOffset.UtcNow - topic.LastAttemptAt.Value).Days;
+                        Console.WriteLine($"      Last attempt: {daysAgo} days ago");
+                    }
+                }
+                Console.WriteLine();
+            }
+            else
+            {
+                Console.WriteLine("2. Topics to review (Leitner system): None");
+                Console.WriteLine();
+            }
+
+            // 3. Неизученные темы
+            if (recommendations.UnstudiedTopics.Count > 0)
+            {
+                Console.WriteLine($"3. Unstudied topics ({recommendations.UnstudiedTopics.Count}):");
+                for (int i = 0; i < recommendations.UnstudiedTopics.Count; i++)
+                {
+                    var topic = recommendations.UnstudiedTopics.ElementAt(i);
+                    Console.WriteLine($"   {i + 1}) {topic.TopicName}");
+                }
+                Console.WriteLine();
+            }
+            else
+            {
+                Console.WriteLine("3. Unstudied topics: None");
+                Console.WriteLine();
+            }
+
+            // Меню действий
+            Console.WriteLine("Options:");
+            Console.WriteLine("1) Create test for critical topics");
+            Console.WriteLine("2) Create test for Leitner topics");
+            Console.WriteLine("3) Create test for unstudied topic");
+            Console.WriteLine("4) Change critical threshold");
+            Console.WriteLine("0) Back to menu");
+            Console.Write("Choose option: ");
+            var choice = Console.ReadLine();
+            Console.WriteLine();
+
+            switch (choice)
+            {
+                case "1":
+                    if (recommendations.CriticalTopics.Count > 0)
+                    {
+                        Console.WriteLine("This feature will be implemented later.");
+                        Console.WriteLine("Press Enter to continue...");
+                        Console.ReadLine();
+                    }
+                    else
+                    {
+                        Console.WriteLine("No critical topics to create test for.");
+                        Console.WriteLine("Press Enter to continue...");
+                        Console.ReadLine();
+                    }
+                    break;
+                case "2":
+                    if (recommendations.LeitnerTopics.Count > 0)
+                    {
+                        Console.WriteLine("This feature will be implemented later.");
+                        Console.WriteLine("Press Enter to continue...");
+                        Console.ReadLine();
+                    }
+                    else
+                    {
+                        Console.WriteLine("No topics to review.");
+                        Console.WriteLine("Press Enter to continue...");
+                        Console.ReadLine();
+                    }
+                    break;
+                case "3":
+                    if (recommendations.UnstudiedTopics.Count > 0)
+                    {
+                        Console.WriteLine("Select unstudied topic:");
+                        for (int i = 0; i < recommendations.UnstudiedTopics.Count; i++)
+                        {
+                            Console.WriteLine($"{i + 1}) {recommendations.UnstudiedTopics.ElementAt(i).TopicName}");
+                        }
+                        Console.WriteLine("0) Back");
+                        Console.Write("Enter topic number: ");
+                        var topicInput = Console.ReadLine();
+                        Console.WriteLine();
+
+                        if (topicInput == "0")
+                        {
+                            // Возврат на предыдущий шаг - просто продолжаем цикл
+                            continue;
+                        }
+
+                        if (int.TryParse(topicInput, out var topicIndex) && topicIndex >= 1 && topicIndex <= recommendations.UnstudiedTopics.Count)
+                        {
+                            var selectedTopic = recommendations.UnstudiedTopics.ElementAt(topicIndex - 1);
+                            Console.WriteLine($"Creating test for topic '{selectedTopic.TopicName}'...");
+                            Console.WriteLine("This feature will be implemented later.");
+                            Console.WriteLine("Press Enter to continue...");
+                            Console.ReadLine();
+                        }
+                        else
+                        {
+                            Console.WriteLine("Invalid topic number.");
+                            Console.WriteLine("Press Enter to continue...");
+                            Console.ReadLine();
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("No unstudied topics.");
+                        Console.WriteLine("Press Enter to continue...");
+                        Console.ReadLine();
+                    }
+                    break;
+                case "4":
+                    Console.Write($"Enter new critical threshold (current: {criticalThreshold}%): ");
+                    var thresholdInput = Console.ReadLine();
+                    Console.WriteLine();
+
+                    if (int.TryParse(thresholdInput, out var newThreshold) && newThreshold >= 0 && newThreshold <= 100)
+                    {
+                        var updateResult = await _apiClient.UpdateCriticalThresholdAsync(newThreshold, _cts.Token);
+                        if (updateResult.Success)
+                        {
+                            criticalThreshold = newThreshold;
+                            Console.WriteLine($"Critical threshold updated to {newThreshold}%");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Error: {FormatError(updateResult.Error)}");
+                        }
+                        Console.WriteLine("Press Enter to continue...");
+                        Console.ReadLine();
+                    }
+                    else
+                    {
+                        Console.WriteLine("Invalid threshold. Must be between 0 and 100.");
+                        Console.WriteLine("Press Enter to continue...");
+                        Console.ReadLine();
+                    }
+                    break;
+                case "0":
+                    return;
+                default:
+                    Console.WriteLine("Unknown option.");
+                    Console.WriteLine("Press Enter to continue...");
+                    Console.ReadLine();
+                    break;
+            }
+        }
+    }
+
     private static string Prompt(string message, string? defaultValue = null)
     {
         Console.Write(string.IsNullOrEmpty(defaultValue)
@@ -899,6 +1279,180 @@ public sealed class MobileClientApp : IDisposable
         {
             return trimmed;
         }
+    }
+
+    private async Task JoinTeacherByCodeAsync()
+    {
+        Console.WriteLine("=== Join Teacher by Code ===");
+        Console.Write("Enter invitation code: ");
+        var code = Console.ReadLine()?.Trim();
+
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            Console.WriteLine("Invitation code cannot be empty.");
+            Console.WriteLine();
+            return;
+        }
+
+        Console.WriteLine("Joining teacher...");
+        var result = await _apiClient.JoinTeacherByCodeAsync(code, _cts.Token);
+
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(result.Error)}");
+            Console.WriteLine();
+            return;
+        }
+
+        var teacher = result.Value!;
+        Console.WriteLine();
+        Console.WriteLine("Successfully joined teacher!");
+        Console.WriteLine($"Teacher: {teacher.UserName}");
+        Console.WriteLine($"Email: {teacher.Email}");
+        if (teacher.EstablishedAt.HasValue)
+        {
+            Console.WriteLine($"Connected: {teacher.EstablishedAt.Value:yyyy-MM-dd HH:mm}");
+        }
+        Console.WriteLine();
+    }
+
+    private async Task ShowMyTeachersAsync()
+    {
+        while (!_cts.IsCancellationRequested)
+        {
+            Console.WriteLine("=== My Teachers ===");
+            Console.WriteLine("1) Join teacher by code");
+            Console.WriteLine("2) View my teachers");
+            Console.WriteLine("3) Remove teacher");
+            Console.WriteLine("0) Back");
+            Console.Write("Select option: ");
+
+            var choice = Console.ReadLine();
+            Console.WriteLine();
+
+            switch (choice)
+            {
+                case "1":
+                    await JoinTeacherByCodeAsync();
+                    break;
+                case "2":
+                    await ViewMyTeachersListAsync();
+                    break;
+                case "3":
+                    await RemoveTeacherAsync();
+                    break;
+                case "0":
+                    return;
+                default:
+                    Console.WriteLine("Unknown option.");
+                    break;
+            }
+        }
+    }
+
+    private async Task ViewMyTeachersListAsync()
+    {
+        Console.WriteLine("=== My Teachers List ===");
+        
+        var result = await _apiClient.GetMyTeachersAsync(_cts.Token);
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(result.Error)}");
+            Console.WriteLine();
+            return;
+        }
+
+        var teachers = result.Value!;
+        if (teachers.Count == 0)
+        {
+            Console.WriteLine("You are not connected to any teachers yet.");
+            Console.WriteLine("Use option 1 to join a teacher by invitation code.");
+            Console.WriteLine();
+            return;
+        }
+
+        Console.WriteLine();
+        for (int i = 0; i < teachers.Count; i++)
+        {
+            var teacher = teachers.ElementAt(i);
+            Console.WriteLine($"{i + 1}) {teacher.UserName} (ID: {teacher.Id})");
+            Console.WriteLine($"   Email: {teacher.Email}");
+            if (teacher.EstablishedAt.HasValue)
+            {
+                Console.WriteLine($"   Connected: {teacher.EstablishedAt.Value:yyyy-MM-dd HH:mm}");
+            }
+            Console.WriteLine();
+        }
+    }
+
+    private async Task RemoveTeacherAsync()
+    {
+        Console.WriteLine("=== Remove Teacher ===");
+        
+        var result = await _apiClient.GetMyTeachersAsync(_cts.Token);
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(result.Error)}");
+            Console.WriteLine();
+            return;
+        }
+
+        var teachers = result.Value!;
+        if (teachers.Count == 0)
+        {
+            Console.WriteLine("You are not connected to any teachers yet.");
+            Console.WriteLine();
+            return;
+        }
+
+        Console.WriteLine("Your teachers:");
+        for (int i = 0; i < teachers.Count; i++)
+        {
+            var teacher = teachers.ElementAt(i);
+            Console.WriteLine($"{i + 1}) {teacher.UserName} (ID: {teacher.Id})");
+        }
+        Console.WriteLine("0) Cancel");
+        Console.Write("Enter teacher ID to remove: ");
+
+        var input = Console.ReadLine()?.Trim();
+        Console.WriteLine();
+
+        if (input == "0" || !long.TryParse(input, out var teacherId))
+        {
+            return;
+        }
+
+        // Проверяем, что учитель существует в списке
+        var teacherToRemove = teachers.FirstOrDefault(t => t.Id == teacherId);
+        if (teacherToRemove == null)
+        {
+            Console.WriteLine($"Teacher with ID {teacherId} not found in your teachers list.");
+            Console.WriteLine();
+            return;
+        }
+
+        Console.Write($"Are you sure you want to remove {teacherToRemove.UserName}? (y/n): ");
+        var confirm = Console.ReadLine()?.Trim().ToLower();
+        
+        if (confirm != "y")
+        {
+            Console.WriteLine("Removal cancelled.");
+            Console.WriteLine();
+            return;
+        }
+
+        Console.WriteLine($"Removing connection to {teacherToRemove.UserName}...");
+        
+        var removeResult = await _apiClient.RemoveTeacherAsync(teacherId, _cts.Token);
+        if (!removeResult.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(removeResult.Error)}");
+            Console.WriteLine();
+            return;
+        }
+
+        Console.WriteLine("Teacher removed successfully.");
+        Console.WriteLine();
     }
 
     public void Dispose()

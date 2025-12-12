@@ -16,5 +16,4 @@ public sealed class Topic
     public ICollection<Topic> Children { get; set; } = new List<Topic>();
     public ICollection<TaskItem> Tasks { get; set; } = new List<TaskItem>();
     public ICollection<UserStats> UserStats { get; set; } = new List<UserStats>();
-    public ICollection<Recommendation> Recommendations { get; set; } = new List<Recommendation>();
 }

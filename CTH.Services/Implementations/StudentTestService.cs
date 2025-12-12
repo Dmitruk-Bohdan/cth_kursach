@@ -1,4 +1,5 @@
 ﻿using CTH.Database.Entities.Public;
+using CTH.Database.Models;
 using CTH.Database.Repositories.Interfaces;
 using CTH.Services.Interfaces;
 using CTH.Services.Models.Dto.Tests;
@@ -17,9 +18,9 @@ public class StudentTestService : IStudentTestService
         _testRepository = testRepository;
     }
 
-    public async Task<IReadOnlyCollection<TestListItemDto>> GetPublishedTestsAsync(long? subjectId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyCollection<TestListItemDto>> GetPublishedTestsAsync(long userId, TestListFilter filter, CancellationToken cancellationToken)
     {
-        var tests = await _testRepository.GetPublishedTestsAsync(subjectId, cancellationToken);
+        var tests = await _testRepository.GetPublishedTestsAsync(userId, filter, cancellationToken);
         return tests.Select(t => new TestListItemDto
         {
             Id = t.Id,
@@ -29,7 +30,8 @@ public class StudentTestService : IStudentTestService
             TimeLimitSec = t.TimeLimitSec,
             AttemptsAllowed = t.AttemptsAllowed,
             IsPublic = t.IsPublic,
-            IsStateArchive = t.IsStateArchive
+            IsStateArchive = t.IsStateArchive,
+            Mode = t.Mode
         }).ToArray();
     }
 

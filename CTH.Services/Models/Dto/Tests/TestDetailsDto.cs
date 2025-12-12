@@ -8,6 +8,8 @@ public class TestDetailsDto
     public long SubjectId { get; set; }
     public int? TimeLimitSec { get; set; }
     public short? AttemptsAllowed { get; set; }
+    public string? Mode { get; set; }
+    public bool IsPublished { get; set; }
     public bool IsPublic { get; set; }
     public bool IsStateArchive { get; set; }
     public IReadOnlyCollection<TestTaskDto> Tasks { get; set; } = Array.Empty<TestTaskDto>();

@@ -10,4 +10,5 @@ public class TestListItemDto
     public short? AttemptsAllowed { get; set; }
     public bool IsPublic { get; set; }
     public bool IsStateArchive { get; set; }
+    public string? Mode { get; set; }
 }
