@@ -91,17 +91,3 @@ BEGIN
     END IF;
 END $$;
 
--- Синхронизация последовательности для exam_source
-DO $$
-DECLARE
-    max_id BIGINT;
-    seq_name TEXT;
-BEGIN
-    SELECT pg_get_serial_sequence('exam_source', 'id') INTO seq_name;
-    SELECT COALESCE(MAX(id), 0) FROM exam_source INTO max_id;
-    IF seq_name IS NOT NULL THEN
-        EXECUTE format('SELECT setval(%L, %s, true)', seq_name, GREATEST(max_id, 1));
-        RAISE NOTICE 'Synchronized sequence % to %', seq_name, GREATEST(max_id, 1);
-    END IF;
-END $$;
-

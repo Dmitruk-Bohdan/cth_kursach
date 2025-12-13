@@ -10,6 +10,8 @@ using Npgsql;
 using NpgsqlTypes;
 using PropTechPeople.Services.Models.ResultApiModels;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace CTH.Services.Implementations;
 
@@ -21,6 +23,7 @@ public class AdminService : IAdminService
     private readonly ITaskRepository _taskRepository;
     private readonly ITestRepository _testRepository;
     private readonly IUserSessionRepository _userSessionRepository;
+    private readonly IInvitationCodeRepository _invitationCodeRepository;
     private readonly ILogger<AdminService> _logger;
 
     // Query strings
@@ -29,7 +32,7 @@ public class AdminService : IAdminService
     private readonly string _getAllTopicsQuery;
     private readonly string _getAllTasksQuery;
     private readonly string _getAllTestsQuery;
-    private readonly string _getAllExamSourcesQuery;
+    private readonly string _getAllInvitationCodesQuery;
     
     // Command strings
     private readonly string _createUserQuery;
@@ -45,9 +48,9 @@ public class AdminService : IAdminService
     private readonly string _activateTaskQuery;
     private readonly string _deactivateTaskQuery;
     private readonly string _deleteTaskQuery;
-    private readonly string _createExamSourceQuery;
-    private readonly string _updateExamSourceQuery;
-    private readonly string _deleteExamSourceQuery;
+    private readonly string _createInvitationCodeQuery;
+    private readonly string _updateInvitationCodeQuery;
+    private readonly string _deleteInvitationCodeQuery;
 
     public AdminService(
         ISqlExecutor sqlExecutor,
@@ -56,6 +59,7 @@ public class AdminService : IAdminService
         ITaskRepository taskRepository,
         ITestRepository testRepository,
         IUserSessionRepository userSessionRepository,
+        IInvitationCodeRepository invitationCodeRepository,
         ILogger<AdminService> logger)
     {
         _sqlExecutor = sqlExecutor;
@@ -64,6 +68,7 @@ public class AdminService : IAdminService
         _taskRepository = taskRepository;
         _testRepository = testRepository;
         _userSessionRepository = userSessionRepository;
+        _invitationCodeRepository = invitationCodeRepository;
         _logger = logger;
 
         // Load queries
@@ -72,7 +77,7 @@ public class AdminService : IAdminService
         _getAllTopicsQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Queries/GetAllTopics");
         _getAllTasksQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Queries/GetAllTasks");
         _getAllTestsQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Queries/GetAllTests");
-        _getAllExamSourcesQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Queries/GetAllExamSources");
+        _getAllInvitationCodesQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Queries/GetAllInvitationCodes");
         
         _createUserQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Commands/CreateUser");
         _updateUserQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Commands/UpdateUser");
@@ -87,9 +92,9 @@ public class AdminService : IAdminService
         _activateTaskQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Commands/ActivateTask");
         _deactivateTaskQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Commands/DeactivateTask");
         _deleteTaskQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Commands/DeleteTask");
-        _createExamSourceQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Commands/CreateExamSource");
-        _updateExamSourceQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Commands/UpdateExamSource");
-        _deleteExamSourceQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Commands/DeleteExamSource");
+        _createInvitationCodeQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Commands/CreateInvitationCode");
+        _updateInvitationCodeQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Commands/UpdateInvitationCode");
+        _deleteInvitationCodeQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Commands/DeleteInvitationCode");
     }
 
     // Users
@@ -956,7 +961,6 @@ public class AdminService : IAdminService
                     SubjectName = subjectName,
                     TopicId = createdTask.TopicId,
                     TopicName = topicName,
-                    ExamSourceId = null, // Можно добавить если нужно
                     TaskType = createdTask.TaskType,
                     Difficulty = createdTask.Difficulty,
                     Statement = createdTask.Statement,
@@ -1067,7 +1071,6 @@ public class AdminService : IAdminService
                     SubjectName = subjectName,
                     TopicId = task.TopicId,
                     TopicName = topicName,
-                    ExamSourceId = null,
                     TaskType = task.TaskType,
                     Difficulty = task.Difficulty,
                     Statement = task.Statement,
@@ -1484,193 +1487,251 @@ public class AdminService : IAdminService
         }
     }
 
-    // Exam Sources
-    public async Task<HttpOperationResult<IReadOnlyCollection<Admin.ExamSourceListItemDto>>> GetAllExamSourcesAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            var examSources = await _sqlExecutor.QueryAsync(
-                _getAllExamSourcesQuery,
-                reader => new Admin.ExamSourceListItemDto
-                {
-                    Id = reader.GetInt64(reader.GetOrdinal("id")),
-                    Year = reader.GetInt32(reader.GetOrdinal("year")),
-                    VariantNumber = reader.IsDBNull(reader.GetOrdinal("variant_number")) ? null : reader.GetInt32(reader.GetOrdinal("variant_number")),
-                    Issuer = reader.IsDBNull(reader.GetOrdinal("issuer")) ? null : reader.GetString(reader.GetOrdinal("issuer")),
-                    Notes = reader.IsDBNull(reader.GetOrdinal("notes")) ? null : reader.GetString(reader.GetOrdinal("notes")),
-                    CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
-                    UpdatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at"))
-                },
-                Array.Empty<NpgsqlParameter>(),
-                cancellationToken);
+    // Invitation Codes
+    private const string CodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Исключаем похожие символы (0, O, I, 1)
+    private const int CodeLength = 32; // XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX = 32 символа
 
-            return new HttpOperationResult<IReadOnlyCollection<Admin.ExamSourceListItemDto>>
-            {
-                Result = examSources,
-                Status = HttpStatusCode.OK
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get all exam sources");
-            return new HttpOperationResult<IReadOnlyCollection<Admin.ExamSourceListItemDto>>
-            {
-                Status = HttpStatusCode.InternalServerError,
-                Error = "Failed to retrieve exam sources"
-            };
-        }
-    }
-
-    public async Task<HttpOperationResult<Admin.ExamSourceDetailsDto>> CreateExamSourceAsync(Admin.CreateExamSourceRequestDto request, CancellationToken cancellationToken)
+    public async Task<HttpOperationResult<IReadOnlyCollection<Admin.InvitationCodeListItemDto>>> GetAllInvitationCodesAsync(long? teacherId, string? status, CancellationToken cancellationToken)
     {
         try
         {
             var parameters = new List<NpgsqlParameter>
             {
-                new("year", NpgsqlDbType.Integer) { Value = request.Year },
-                new("variant_number", NpgsqlDbType.Integer) { Value = (object?)request.VariantNumber ?? DBNull.Value },
-                new("issuer", NpgsqlDbType.Varchar) { Value = (object?)request.Issuer ?? DBNull.Value },
-                new("notes", NpgsqlDbType.Text) { Value = (object?)request.Notes ?? DBNull.Value }
+                new("teacher_id", NpgsqlDbType.Bigint) { Value = (object?)teacherId ?? DBNull.Value },
+                new("status", NpgsqlDbType.Varchar) { Value = (object?)status ?? DBNull.Value }
+            };
+
+            var codes = await _sqlExecutor.QueryAsync(
+                _getAllInvitationCodesQuery,
+                reader => new Admin.InvitationCodeListItemDto
+                {
+                    Id = reader.GetInt64(reader.GetOrdinal("id")),
+                    TeacherId = reader.GetInt64(reader.GetOrdinal("teacher_id")),
+                    TeacherName = reader.GetString(reader.GetOrdinal("teacher_name")),
+                    TeacherEmail = reader.GetString(reader.GetOrdinal("teacher_email")),
+                    Code = reader.GetString(reader.GetOrdinal("code")),
+                    MaxUses = reader.IsDBNull(reader.GetOrdinal("max_uses")) ? null : reader.GetInt32(reader.GetOrdinal("max_uses")),
+                    UsedCount = reader.GetInt32(reader.GetOrdinal("used_count")),
+                    ExpiresAt = reader.IsDBNull(reader.GetOrdinal("expires_at")) ? null : reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("expires_at")),
+                    Status = reader.GetString(reader.GetOrdinal("status")),
+                    CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at"))
+                },
+                parameters,
+                cancellationToken);
+
+            return new HttpOperationResult<IReadOnlyCollection<Admin.InvitationCodeListItemDto>>
+            {
+                Result = codes,
+                Status = HttpStatusCode.OK
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get all invitation codes");
+            return new HttpOperationResult<IReadOnlyCollection<Admin.InvitationCodeListItemDto>>
+            {
+                Status = HttpStatusCode.InternalServerError,
+                Error = "Failed to retrieve invitation codes"
+            };
+        }
+    }
+
+    public async Task<HttpOperationResult<Admin.InvitationCodeDetailsDto>> CreateInvitationCodeAsync(Admin.CreateInvitationCodeRequestDto request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Проверяем, что учитель существует
+            var allUsers = await GetAllUsersAsync(cancellationToken);
+            var teacher = allUsers.Result?.FirstOrDefault(u => u.Id == request.TeacherId);
+            if (teacher == null)
+            {
+                return new HttpOperationResult<Admin.InvitationCodeDetailsDto>
+                {
+                    Status = HttpStatusCode.NotFound,
+                    Error = "Teacher not found"
+                };
+            }
+
+            // Генерируем уникальный код
+            string code;
+            int attempts = 0;
+            const int maxAttempts = 10;
+
+            do
+            {
+                code = GenerateInvitationCode();
+                var existing = await _invitationCodeRepository.GetByCodeAsync(code, cancellationToken);
+                if (existing == null)
+                {
+                    break;
+                }
+                attempts++;
+            } while (attempts < maxAttempts);
+
+            if (attempts >= maxAttempts)
+            {
+                return new HttpOperationResult<Admin.InvitationCodeDetailsDto>
+                {
+                    Status = HttpStatusCode.InternalServerError,
+                    Error = "Failed to generate unique invitation code"
+                };
+            }
+
+            // Форматируем код как GUID: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+            code = FormatCode(code);
+
+            var parameters = new List<NpgsqlParameter>
+            {
+                new("teacher_id", NpgsqlDbType.Bigint) { Value = request.TeacherId },
+                new("code", NpgsqlDbType.Varchar) { Value = code },
+                new("max_uses", NpgsqlDbType.Integer) { Value = (object?)request.MaxUses ?? DBNull.Value },
+                new("expires_at", NpgsqlDbType.TimestampTz) { Value = (object?)request.ExpiresAt ?? DBNull.Value },
+                new("status", NpgsqlDbType.Varchar) { Value = "active" }
             };
 
             var createdId = await _sqlExecutor.QuerySingleAsync(
-                _createExamSourceQuery,
+                _createInvitationCodeQuery,
                 reader => reader.GetInt64(0),
                 parameters,
                 cancellationToken);
 
             if (createdId == 0)
             {
-                return new HttpOperationResult<Admin.ExamSourceDetailsDto>
+                return new HttpOperationResult<Admin.InvitationCodeDetailsDto>
                 {
                     Status = HttpStatusCode.InternalServerError,
-                    Error = "Failed to create exam source"
+                    Error = "Failed to create invitation code"
                 };
             }
 
-            // Получаем созданный источник экзамена
-            var examSources = await GetAllExamSourcesAsync(cancellationToken);
-            var examSource = examSources.Result?.FirstOrDefault(es => es.Id == createdId);
+            // Получаем созданный код
+            var codes = await GetAllInvitationCodesAsync(null, null, cancellationToken);
+            var createdCode = codes.Result?.FirstOrDefault(c => c.Id == createdId);
 
-            if (examSource == null)
+            if (createdCode == null)
             {
-                return new HttpOperationResult<Admin.ExamSourceDetailsDto>
+                return new HttpOperationResult<Admin.InvitationCodeDetailsDto>
                 {
                     Status = HttpStatusCode.InternalServerError,
-                    Error = "Exam source created but failed to retrieve details"
+                    Error = "Invitation code created but failed to retrieve details"
                 };
             }
 
-            return new HttpOperationResult<Admin.ExamSourceDetailsDto>
+            return new HttpOperationResult<Admin.InvitationCodeDetailsDto>
             {
-                Result = new Admin.ExamSourceDetailsDto
+                Result = new Admin.InvitationCodeDetailsDto
                 {
-                    Id = examSource.Id,
-                    Year = examSource.Year,
-                    VariantNumber = examSource.VariantNumber,
-                    Issuer = examSource.Issuer,
-                    Notes = examSource.Notes,
-                    CreatedAt = examSource.CreatedAt,
-                    UpdatedAt = examSource.UpdatedAt
+                    Id = createdCode.Id,
+                    TeacherId = createdCode.TeacherId,
+                    TeacherName = createdCode.TeacherName,
+                    TeacherEmail = createdCode.TeacherEmail,
+                    Code = createdCode.Code,
+                    MaxUses = createdCode.MaxUses,
+                    UsedCount = createdCode.UsedCount,
+                    ExpiresAt = createdCode.ExpiresAt,
+                    Status = createdCode.Status,
+                    CreatedAt = createdCode.CreatedAt
                 },
                 Status = HttpStatusCode.Created
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create exam source");
-            return new HttpOperationResult<Admin.ExamSourceDetailsDto>
+            _logger.LogError(ex, "Failed to create invitation code");
+            return new HttpOperationResult<Admin.InvitationCodeDetailsDto>
             {
                 Status = HttpStatusCode.InternalServerError,
-                Error = "Failed to create exam source"
+                Error = "Failed to create invitation code"
             };
         }
     }
 
-    public async Task<HttpOperationResult<Admin.ExamSourceDetailsDto>> UpdateExamSourceAsync(long examSourceId, Admin.UpdateExamSourceRequestDto request, CancellationToken cancellationToken)
+    public async Task<HttpOperationResult<Admin.InvitationCodeDetailsDto>> UpdateInvitationCodeAsync(long invitationCodeId, Admin.UpdateInvitationCodeRequestDto request, CancellationToken cancellationToken)
     {
         try
         {
             var parameters = new List<NpgsqlParameter>
             {
-                new("exam_source_id", NpgsqlDbType.Bigint) { Value = examSourceId },
-                new("year", NpgsqlDbType.Integer) { Value = (object?)request.Year ?? DBNull.Value },
-                new("variant_number", NpgsqlDbType.Integer) { Value = (object?)request.VariantNumber ?? DBNull.Value },
-                new("issuer", NpgsqlDbType.Varchar) { Value = (object?)request.Issuer ?? DBNull.Value },
-                new("notes", NpgsqlDbType.Text) { Value = (object?)request.Notes ?? DBNull.Value }
+                new("id", NpgsqlDbType.Bigint) { Value = invitationCodeId },
+                new("max_uses", NpgsqlDbType.Integer) { Value = (object?)request.MaxUses ?? DBNull.Value },
+                new("expires_at", NpgsqlDbType.TimestampTz) { Value = (object?)request.ExpiresAt ?? DBNull.Value },
+                new("status", NpgsqlDbType.Varchar) { Value = (object?)request.Status ?? DBNull.Value }
             };
 
             var updatedId = await _sqlExecutor.QuerySingleAsync(
-                _updateExamSourceQuery,
+                _updateInvitationCodeQuery,
                 reader => reader.GetInt64(0),
                 parameters,
                 cancellationToken);
 
             if (updatedId == 0)
             {
-                return new HttpOperationResult<Admin.ExamSourceDetailsDto>
+                return new HttpOperationResult<Admin.InvitationCodeDetailsDto>
                 {
                     Status = HttpStatusCode.NotFound,
-                    Error = "Exam source not found"
+                    Error = "Invitation code not found"
                 };
             }
 
-            // Получаем обновленный источник экзамена
-            var examSources = await GetAllExamSourcesAsync(cancellationToken);
-            var examSource = examSources.Result?.FirstOrDefault(es => es.Id == examSourceId);
+            // Получаем обновленный код
+            var codes = await GetAllInvitationCodesAsync(null, null, cancellationToken);
+            var updatedCode = codes.Result?.FirstOrDefault(c => c.Id == invitationCodeId);
 
-            if (examSource == null)
+            if (updatedCode == null)
             {
-                return new HttpOperationResult<Admin.ExamSourceDetailsDto>
+                return new HttpOperationResult<Admin.InvitationCodeDetailsDto>
                 {
                     Status = HttpStatusCode.InternalServerError,
-                    Error = "Exam source updated but failed to retrieve details"
+                    Error = "Invitation code updated but failed to retrieve details"
                 };
             }
 
-            return new HttpOperationResult<Admin.ExamSourceDetailsDto>
+            return new HttpOperationResult<Admin.InvitationCodeDetailsDto>
             {
-                Result = new Admin.ExamSourceDetailsDto
+                Result = new Admin.InvitationCodeDetailsDto
                 {
-                    Id = examSource.Id,
-                    Year = examSource.Year,
-                    VariantNumber = examSource.VariantNumber,
-                    Issuer = examSource.Issuer,
-                    Notes = examSource.Notes,
-                    CreatedAt = examSource.CreatedAt,
-                    UpdatedAt = examSource.UpdatedAt
+                    Id = updatedCode.Id,
+                    TeacherId = updatedCode.TeacherId,
+                    TeacherName = updatedCode.TeacherName,
+                    TeacherEmail = updatedCode.TeacherEmail,
+                    Code = updatedCode.Code,
+                    MaxUses = updatedCode.MaxUses,
+                    UsedCount = updatedCode.UsedCount,
+                    ExpiresAt = updatedCode.ExpiresAt,
+                    Status = updatedCode.Status,
+                    CreatedAt = updatedCode.CreatedAt
                 },
                 Status = HttpStatusCode.OK
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update exam source {ExamSourceId}", examSourceId);
-            return new HttpOperationResult<Admin.ExamSourceDetailsDto>
+            _logger.LogError(ex, "Failed to update invitation code {InvitationCodeId}", invitationCodeId);
+            return new HttpOperationResult<Admin.InvitationCodeDetailsDto>
             {
                 Status = HttpStatusCode.InternalServerError,
-                Error = "Failed to update exam source"
+                Error = "Failed to update invitation code"
             };
         }
     }
 
-    public async Task<HttpOperationResult> DeleteExamSourceAsync(long examSourceId, CancellationToken cancellationToken)
+    public async Task<HttpOperationResult> DeleteInvitationCodeAsync(long invitationCodeId, CancellationToken cancellationToken)
     {
         try
         {
             var parameters = new[]
             {
-                new NpgsqlParameter("exam_source_id", NpgsqlDbType.Bigint) { Value = examSourceId }
+                new NpgsqlParameter("id", NpgsqlDbType.Bigint) { Value = invitationCodeId }
             };
 
-            var affectedRows = await _sqlExecutor.ExecuteAsync(_deleteExamSourceQuery, parameters, cancellationToken);
+            var affectedRows = await _sqlExecutor.ExecuteAsync(_deleteInvitationCodeQuery, parameters, cancellationToken);
 
             if (affectedRows == 0)
             {
                 return new HttpOperationResult
                 {
                     Status = HttpStatusCode.NotFound,
-                    Error = "Exam source not found"
+                    Error = "Invitation code not found"
                 };
             }
 
@@ -1681,13 +1742,37 @@ public class AdminService : IAdminService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to delete exam source {ExamSourceId}", examSourceId);
+            _logger.LogError(ex, "Failed to delete invitation code {InvitationCodeId}", invitationCodeId);
             return new HttpOperationResult
             {
                 Status = HttpStatusCode.InternalServerError,
-                Error = "Failed to delete exam source. Check for dependencies (tasks using this exam source)."
+                Error = "Failed to delete invitation code"
             };
         }
     }
+
+    private static string GenerateInvitationCode()
+    {
+        var random = RandomNumberGenerator.GetBytes(CodeLength);
+        var code = new StringBuilder(CodeLength);
+
+        for (int i = 0; i < CodeLength; i++)
+        {
+            code.Append(CodeChars[random[i] % CodeChars.Length]);
+        }
+
+        return code.ToString();
+    }
+
+    private static string FormatCode(string code)
+    {
+        // Форматируем как GUID: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+        if (code.Length == CodeLength)
+        {
+            return $"{code[0..8]}-{code[8..12]}-{code[12..16]}-{code[16..20]}-{code[20..32]}";
+        }
+        return code;
+    }
+
 }
 

@@ -408,69 +408,69 @@ public class AdminController : ControllerBase
         return result.ToActionResult();
     }
 
-    // Exam Sources
-    [HttpGet("exam-sources")]
-    public async Task<IActionResult> GetAllExamSources(CancellationToken cancellationToken)
+    // Invitation Codes
+    [HttpGet("invitation-codes")]
+    public async Task<IActionResult> GetAllInvitationCodes([FromQuery] long? teacherId, [FromQuery] string? status, CancellationToken cancellationToken)
     {
         if (!IsAdmin())
         {
             return Forbid();
         }
 
-        var result = await _adminService.GetAllExamSourcesAsync(cancellationToken);
+        var result = await _adminService.GetAllInvitationCodesAsync(teacherId, status, cancellationToken);
         return result.ToActionResult();
     }
 
-    [HttpPost("exam-sources")]
-    public async Task<IActionResult> CreateExamSource([FromBody] CreateExamSourceRequestDto request, CancellationToken cancellationToken)
+    [HttpPost("invitation-codes")]
+    public async Task<IActionResult> CreateInvitationCode([FromBody] CreateInvitationCodeRequestDto request, CancellationToken cancellationToken)
     {
         if (!IsAdmin())
         {
             return Forbid();
         }
 
-        var result = await _adminService.CreateExamSourceAsync(request, cancellationToken);
+        var result = await _adminService.CreateInvitationCodeAsync(request, cancellationToken);
         if (!result.IsSuccessful)
         {
             return result.ToActionResult();
         }
 
-        return CreatedAtAction(nameof(GetExamSourceById), new { examSourceId = result.Result!.Id }, result.Result);
+        return CreatedAtAction(nameof(GetInvitationCodeById), new { invitationCodeId = result.Result!.Id }, result.Result);
     }
 
-    [HttpGet("exam-sources/{examSourceId:long}")]
-    public async Task<IActionResult> GetExamSourceById(long examSourceId, CancellationToken cancellationToken)
+    [HttpGet("invitation-codes/{invitationCodeId:long}")]
+    public async Task<IActionResult> GetInvitationCodeById(long invitationCodeId, CancellationToken cancellationToken)
     {
         if (!IsAdmin())
         {
             return Forbid();
         }
 
-        // TODO: Implement GetExamSourceById in service
+        // TODO: Implement GetInvitationCodeById in service
         return NotFound();
     }
 
-    [HttpPut("exam-sources/{examSourceId:long}")]
-    public async Task<IActionResult> UpdateExamSource(long examSourceId, [FromBody] UpdateExamSourceRequestDto request, CancellationToken cancellationToken)
+    [HttpPut("invitation-codes/{invitationCodeId:long}")]
+    public async Task<IActionResult> UpdateInvitationCode(long invitationCodeId, [FromBody] UpdateInvitationCodeRequestDto request, CancellationToken cancellationToken)
     {
         if (!IsAdmin())
         {
             return Forbid();
         }
 
-        var result = await _adminService.UpdateExamSourceAsync(examSourceId, request, cancellationToken);
+        var result = await _adminService.UpdateInvitationCodeAsync(invitationCodeId, request, cancellationToken);
         return result.ToActionResult();
     }
 
-    [HttpDelete("exam-sources/{examSourceId:long}")]
-    public async Task<IActionResult> DeleteExamSource(long examSourceId, CancellationToken cancellationToken)
+    [HttpDelete("invitation-codes/{invitationCodeId:long}")]
+    public async Task<IActionResult> DeleteInvitationCode(long invitationCodeId, CancellationToken cancellationToken)
     {
         if (!IsAdmin())
         {
             return Forbid();
         }
 
-        var result = await _adminService.DeleteExamSourceAsync(examSourceId, cancellationToken);
+        var result = await _adminService.DeleteInvitationCodeAsync(invitationCodeId, cancellationToken);
         return result.ToActionResult();
     }
 }

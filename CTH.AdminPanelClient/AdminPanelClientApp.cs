@@ -115,8 +115,7 @@ public sealed class AdminPanelClientApp : IDisposable
             Console.WriteLine("3) Manage topics");
             Console.WriteLine("4) Manage tasks");
             Console.WriteLine("5) Manage tests");
-            Console.WriteLine("6) Manage exam sources");
-            Console.WriteLine("7) Logout");
+            Console.WriteLine("6) Logout");
             Console.WriteLine("0) Exit");
             Console.Write("Select option: ");
 
@@ -141,7 +140,7 @@ public sealed class AdminPanelClientApp : IDisposable
                     await ManageTestsAsync();
                     break;
                 case "6":
-                    await ManageExamSourcesAsync();
+                    await ManageInvitationCodesAsync();
                     break;
                 case "7":
                     await LogoutAsync();
@@ -1553,222 +1552,6 @@ public sealed class AdminPanelClientApp : IDisposable
         Console.ReadLine();
     }
 
-    private async Task ManageExamSourcesAsync()
-    {
-        Console.WriteLine("=== Manage Exam Sources ===");
-        Console.WriteLine("1) List exam sources");
-        Console.WriteLine("2) Create exam source");
-        Console.WriteLine("3) Edit exam source");
-        Console.WriteLine("4) Delete exam source");
-        Console.WriteLine("0) Back");
-        Console.Write("Select option: ");
-
-        var choice = Console.ReadLine();
-        Console.WriteLine();
-
-        switch (choice)
-        {
-            case "1":
-                await ListExamSourcesAsync();
-                break;
-            case "2":
-                await CreateExamSourceAsync();
-                break;
-            case "3":
-                await EditExamSourceAsync();
-                break;
-            case "4":
-                await DeleteExamSourceAsync();
-                break;
-            case "0":
-                return;
-            default:
-                Console.WriteLine("Unknown option.");
-                break;
-        }
-    }
-
-    private async Task ListExamSourcesAsync()
-    {
-        Console.WriteLine("=== List Exam Sources ===");
-        Console.WriteLine("Loading exam sources...");
-        
-        var result = await _apiClient.GetAllExamSourcesAsync(_cts.Token);
-        if (!result.Success)
-        {
-            Console.WriteLine($"Error: {FormatError(result.Error)}");
-            Console.WriteLine("Press Enter to continue...");
-            Console.ReadLine();
-            return;
-        }
-
-        var examSources = result.Value!;
-        if (examSources.Count == 0)
-        {
-            Console.WriteLine("No exam sources found.");
-            Console.WriteLine("Press Enter to continue...");
-            Console.ReadLine();
-            return;
-        }
-
-        Console.WriteLine();
-        Console.WriteLine($"Found {examSources.Count} exam source(s):");
-        Console.WriteLine(new string('-', 100));
-        foreach (var source in examSources)
-        {
-            var variantInfo = source.VariantNumber.HasValue ? $" Variant {source.VariantNumber.Value}" : "";
-            var issuerInfo = source.Issuer != null ? $" | Issuer: {source.Issuer}" : "";
-            Console.WriteLine($"ID: {source.Id} | Year: {source.Year}{variantInfo}{issuerInfo}");
-            if (!string.IsNullOrWhiteSpace(source.Notes))
-            {
-                Console.WriteLine($"  Notes: {source.Notes}");
-            }
-            Console.WriteLine($"  Created: {source.CreatedAt:yyyy-MM-dd HH:mm}");
-            Console.WriteLine();
-        }
-        Console.WriteLine("Press Enter to continue...");
-        Console.ReadLine();
-    }
-
-    private async Task CreateExamSourceAsync()
-    {
-        Console.WriteLine("=== Create Exam Source ===");
-        
-        Console.Write("Year: ");
-        var yearInput = Console.ReadLine()?.Trim();
-        if (!int.TryParse(yearInput, out var year))
-        {
-            Console.WriteLine("Error: Invalid year.");
-            Console.WriteLine("Press Enter to continue...");
-            Console.ReadLine();
-            return;
-        }
-
-        Console.Write("Variant number (optional): ");
-        var variantInput = Console.ReadLine()?.Trim();
-        int? variantNumber = null;
-        if (!string.IsNullOrWhiteSpace(variantInput) && int.TryParse(variantInput, out var vn))
-        {
-            variantNumber = vn;
-        }
-
-        Console.Write("Issuer (optional): ");
-        var issuer = Console.ReadLine()?.Trim();
-        Console.Write("Notes (optional): ");
-        var notes = Console.ReadLine()?.Trim();
-        Console.WriteLine();
-
-        Console.WriteLine("Creating exam source...");
-        var request = new CreateExamSourceRequest
-        {
-            Year = year,
-            VariantNumber = variantNumber,
-            Issuer = string.IsNullOrWhiteSpace(issuer) ? null : issuer,
-            Notes = string.IsNullOrWhiteSpace(notes) ? null : notes
-        };
-
-        var result = await _apiClient.CreateExamSourceAsync(request, _cts.Token);
-        if (!result.Success)
-        {
-            Console.WriteLine($"Error: {FormatError(result.Error)}");
-        }
-        else
-        {
-            Console.WriteLine($"Exam source created successfully! ID: {result.Value!.Id}");
-        }
-
-        Console.WriteLine("Press Enter to continue...");
-        Console.ReadLine();
-    }
-
-    private async Task EditExamSourceAsync()
-    {
-        Console.WriteLine("=== Edit Exam Source ===");
-        Console.Write("Enter exam source ID: ");
-        var examSourceIdInput = Console.ReadLine();
-        Console.WriteLine();
-
-        if (!long.TryParse(examSourceIdInput, out var examSourceId))
-        {
-            Console.WriteLine("Error: Invalid exam source ID.");
-            Console.WriteLine("Press Enter to continue...");
-            Console.ReadLine();
-            return;
-        }
-
-        Console.WriteLine("Leave field empty to keep current value.");
-        Console.Write("Year: ");
-        var yearInput = Console.ReadLine()?.Trim();
-        Console.Write("Variant number: ");
-        var variantInput = Console.ReadLine()?.Trim();
-        Console.Write("Issuer: ");
-        var issuer = Console.ReadLine()?.Trim();
-        Console.Write("Notes: ");
-        var notes = Console.ReadLine()?.Trim();
-        Console.WriteLine();
-
-        var request = new UpdateExamSourceRequest
-        {
-            Year = string.IsNullOrWhiteSpace(yearInput) || !int.TryParse(yearInput, out var y) ? null : y,
-            VariantNumber = string.IsNullOrWhiteSpace(variantInput) || !int.TryParse(variantInput, out var vn) ? null : vn,
-            Issuer = string.IsNullOrWhiteSpace(issuer) ? null : issuer,
-            Notes = string.IsNullOrWhiteSpace(notes) ? null : notes
-        };
-
-        Console.WriteLine("Updating exam source...");
-        var result = await _apiClient.UpdateExamSourceAsync(examSourceId, request, _cts.Token);
-        if (!result.Success)
-        {
-            Console.WriteLine($"Error: {FormatError(result.Error)}");
-        }
-        else
-        {
-            Console.WriteLine("Exam source updated successfully!");
-        }
-
-        Console.WriteLine("Press Enter to continue...");
-        Console.ReadLine();
-    }
-
-    private async Task DeleteExamSourceAsync()
-    {
-        Console.WriteLine("=== Delete Exam Source ===");
-        Console.Write("Enter exam source ID: ");
-        var examSourceIdInput = Console.ReadLine();
-        Console.WriteLine();
-
-        if (!long.TryParse(examSourceIdInput, out var examSourceId))
-        {
-            Console.WriteLine("Error: Invalid exam source ID.");
-            Console.WriteLine("Press Enter to continue...");
-            Console.ReadLine();
-            return;
-        }
-
-        Console.Write("Are you sure you want to delete this exam source? (yes/no): ");
-        var confirm = Console.ReadLine()?.Trim().ToLower();
-        if (confirm != "yes")
-        {
-            Console.WriteLine("Deletion cancelled.");
-            Console.WriteLine("Press Enter to continue...");
-            Console.ReadLine();
-            return;
-        }
-
-        Console.WriteLine("Deleting exam source...");
-        var result = await _apiClient.DeleteExamSourceAsync(examSourceId, _cts.Token);
-        if (!result.Success)
-        {
-            Console.WriteLine($"Error: {FormatError(result.Error)}");
-        }
-        else
-        {
-            Console.WriteLine("Exam source deleted successfully.");
-        }
-
-        Console.WriteLine("Press Enter to continue...");
-        Console.ReadLine();
-    }
 
     private async Task LogoutAsync()
     {
@@ -1843,6 +1626,245 @@ public sealed class AdminPanelClientApp : IDisposable
             (int)RoleTypeEnum.Admin => "Admin",
             _ => $"Unknown ({roleId})"
         };
+    }
+
+    private async Task ManageInvitationCodesAsync()
+    {
+        Console.WriteLine("=== Manage Invitation Codes ===");
+        Console.WriteLine("1) List invitation codes");
+        Console.WriteLine("2) Create invitation code");
+        Console.WriteLine("3) Edit invitation code");
+        Console.WriteLine("4) Delete invitation code");
+        Console.WriteLine("0) Back");
+        Console.Write("Select option: ");
+
+        var choice = Console.ReadLine();
+        Console.WriteLine();
+
+        switch (choice)
+        {
+            case "1":
+                await ListInvitationCodesAsync();
+                break;
+            case "2":
+                await CreateInvitationCodeAsync();
+                break;
+            case "3":
+                await EditInvitationCodeAsync();
+                break;
+            case "4":
+                await DeleteInvitationCodeAsync();
+                break;
+            case "0":
+                return;
+            default:
+                Console.WriteLine("Unknown option.");
+                break;
+        }
+    }
+
+    private async Task ListInvitationCodesAsync()
+    {
+        Console.WriteLine("=== List Invitation Codes ===");
+        Console.WriteLine("Enter filter options (press Enter to skip and show all codes):");
+        Console.Write("Teacher ID: ");
+        var teacherIdInput = Console.ReadLine()?.Trim();
+        Console.Write("Status (active/revoked/expired, or Enter for all): ");
+        var status = Console.ReadLine()?.Trim();
+        Console.WriteLine();
+
+        long? teacherId = null;
+        if (!string.IsNullOrWhiteSpace(teacherIdInput) && long.TryParse(teacherIdInput, out var tid))
+        {
+            teacherId = tid;
+        }
+
+        Console.WriteLine("Loading invitation codes...");
+        var result = await _apiClient.GetAllInvitationCodesAsync(teacherId, status, _cts.Token);
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(result.Error)}");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        var codes = result.Value!;
+        if (codes.Count == 0)
+        {
+            Console.WriteLine("No invitation codes found.");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        Console.WriteLine();
+        Console.WriteLine($"Found {codes.Count} invitation code(s):");
+        Console.WriteLine(new string('-', 100));
+        foreach (var code in codes)
+        {
+            var maxUsesInfo = code.MaxUses.HasValue ? $" / {code.MaxUses.Value}" : " / Unlimited";
+            var expiresInfo = code.ExpiresAt.HasValue ? $" | Expires: {code.ExpiresAt.Value:yyyy-MM-dd HH:mm}" : " | No expiration";
+            Console.WriteLine($"ID: {code.Id} | Code: {code.Code}");
+            Console.WriteLine($"  Teacher: {code.TeacherName} ({code.TeacherEmail})");
+            Console.WriteLine($"  Uses: {code.UsedCount}{maxUsesInfo} | Status: {code.Status}{expiresInfo}");
+            Console.WriteLine($"  Created: {code.CreatedAt:yyyy-MM-dd HH:mm}");
+            Console.WriteLine();
+        }
+        Console.WriteLine("Press Enter to continue...");
+        Console.ReadLine();
+    }
+
+    private async Task CreateInvitationCodeAsync()
+    {
+        Console.WriteLine("=== Create Invitation Code ===");
+        Console.Write("Teacher ID: ");
+        var teacherIdInput = Console.ReadLine()?.Trim();
+        if (!long.TryParse(teacherIdInput, out var teacherId))
+        {
+            Console.WriteLine("Error: Invalid teacher ID.");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        Console.Write("Max uses (optional, press Enter for unlimited): ");
+        var maxUsesInput = Console.ReadLine()?.Trim();
+        int? maxUses = null;
+        if (!string.IsNullOrWhiteSpace(maxUsesInput) && int.TryParse(maxUsesInput, out var mu))
+        {
+            maxUses = mu;
+        }
+
+        Console.Write("Expires at (optional, format: yyyy-MM-dd HH:mm, or press Enter for no expiration): ");
+        var expiresInput = Console.ReadLine()?.Trim();
+        DateTimeOffset? expiresAt = null;
+        if (!string.IsNullOrWhiteSpace(expiresInput) && DateTimeOffset.TryParse(expiresInput, out var exp))
+        {
+            expiresAt = exp;
+        }
+        Console.WriteLine();
+
+        Console.WriteLine("Creating invitation code...");
+        var request = new ApiClient.CreateInvitationCodeRequest
+        {
+            TeacherId = teacherId,
+            MaxUses = maxUses,
+            ExpiresAt = expiresAt
+        };
+
+        var result = await _apiClient.CreateInvitationCodeAsync(request, _cts.Token);
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(result.Error)}");
+        }
+        else
+        {
+            Console.WriteLine($"Invitation code created successfully!");
+            Console.WriteLine($"Code: {result.Value!.Code}");
+            Console.WriteLine($"ID: {result.Value!.Id}");
+        }
+
+        Console.WriteLine("Press Enter to continue...");
+        Console.ReadLine();
+    }
+
+    private async Task EditInvitationCodeAsync()
+    {
+        Console.WriteLine("=== Edit Invitation Code ===");
+        Console.Write("Enter invitation code ID: ");
+        var codeIdInput = Console.ReadLine();
+        Console.WriteLine();
+
+        if (!long.TryParse(codeIdInput, out var codeId))
+        {
+            Console.WriteLine("Error: Invalid invitation code ID.");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        Console.WriteLine("Leave field empty to keep current value.");
+        Console.Write("Max uses: ");
+        var maxUsesInput = Console.ReadLine()?.Trim();
+        Console.Write("Expires at (format: yyyy-MM-dd HH:mm): ");
+        var expiresInput = Console.ReadLine()?.Trim();
+        Console.Write("Status (active/revoked/expired): ");
+        var status = Console.ReadLine()?.Trim();
+        Console.WriteLine();
+
+        int? maxUses = null;
+        if (!string.IsNullOrWhiteSpace(maxUsesInput) && int.TryParse(maxUsesInput, out var mu))
+        {
+            maxUses = mu;
+        }
+
+        DateTimeOffset? expiresAt = null;
+        if (!string.IsNullOrWhiteSpace(expiresInput) && DateTimeOffset.TryParse(expiresInput, out var exp))
+        {
+            expiresAt = exp;
+        }
+
+        var request = new ApiClient.UpdateInvitationCodeRequest
+        {
+            MaxUses = maxUses,
+            ExpiresAt = expiresAt,
+            Status = string.IsNullOrWhiteSpace(status) ? null : status
+        };
+
+        Console.WriteLine("Updating invitation code...");
+        var result = await _apiClient.UpdateInvitationCodeAsync(codeId, request, _cts.Token);
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(result.Error)}");
+        }
+        else
+        {
+            Console.WriteLine("Invitation code updated successfully!");
+        }
+
+        Console.WriteLine("Press Enter to continue...");
+        Console.ReadLine();
+    }
+
+    private async Task DeleteInvitationCodeAsync()
+    {
+        Console.WriteLine("=== Delete Invitation Code ===");
+        Console.Write("Enter invitation code ID: ");
+        var codeIdInput = Console.ReadLine();
+        Console.WriteLine();
+
+        if (!long.TryParse(codeIdInput, out var codeId))
+        {
+            Console.WriteLine("Error: Invalid invitation code ID.");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        Console.Write("Are you sure you want to delete this invitation code? (yes/no): ");
+        var confirm = Console.ReadLine()?.Trim().ToLower();
+        if (confirm != "yes")
+        {
+            Console.WriteLine("Deletion cancelled.");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        Console.WriteLine("Deleting invitation code...");
+        var result = await _apiClient.DeleteInvitationCodeAsync(codeId, _cts.Token);
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(result.Error)}");
+        }
+        else
+        {
+            Console.WriteLine("Invitation code deleted successfully.");
+        }
+
+        Console.WriteLine("Press Enter to continue...");
+        Console.ReadLine();
     }
 
     public void Dispose()

@@ -42,24 +42,12 @@ CREATE TABLE IF NOT EXISTS topic
     updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS exam_source
-(
-    id         BIGSERIAL PRIMARY KEY,
-    year       INTEGER       NOT NULL,
-    variant_number INTEGER,
-    issuer     VARCHAR(150),
-    notes      TEXT,
-    created_at TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ   NOT NULL DEFAULT NOW()
-);
-
 -- Task/test related tables
 CREATE TABLE IF NOT EXISTS task_item
 (
     id            BIGSERIAL PRIMARY KEY,
     subject_id    BIGINT      NOT NULL REFERENCES subject (id),
     topic_id      BIGINT REFERENCES topic (id),
-    exam_source_id BIGINT REFERENCES exam_source (id),
     task_type     VARCHAR(64) NOT NULL,
     difficulty    SMALLINT    NOT NULL,
     statement     TEXT        NOT NULL,

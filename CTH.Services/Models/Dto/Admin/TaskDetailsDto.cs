@@ -7,7 +7,6 @@ public sealed class TaskDetailsDto
     public string SubjectName { get; set; } = string.Empty;
     public long? TopicId { get; set; }
     public string? TopicName { get; set; }
-    public long? ExamSourceId { get; set; }
     public string TaskType { get; set; } = string.Empty;
     public short Difficulty { get; set; }
     public string Statement { get; set; } = string.Empty;

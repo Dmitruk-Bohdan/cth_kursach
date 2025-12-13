@@ -41,10 +41,10 @@ public interface IAdminService
     Task<HttpOperationResult<TestDetailsDto>> UpdateTestAsync(long testId, UpdateTestRequestDto request, CancellationToken cancellationToken);
     Task<HttpOperationResult> DeleteTestAsync(long testId, CancellationToken cancellationToken);
 
-    // Exam Sources
-    Task<HttpOperationResult<IReadOnlyCollection<Admin.ExamSourceListItemDto>>> GetAllExamSourcesAsync(CancellationToken cancellationToken);
-    Task<HttpOperationResult<Admin.ExamSourceDetailsDto>> CreateExamSourceAsync(Admin.CreateExamSourceRequestDto request, CancellationToken cancellationToken);
-    Task<HttpOperationResult<Admin.ExamSourceDetailsDto>> UpdateExamSourceAsync(long examSourceId, Admin.UpdateExamSourceRequestDto request, CancellationToken cancellationToken);
-    Task<HttpOperationResult> DeleteExamSourceAsync(long examSourceId, CancellationToken cancellationToken);
+    // Invitation Codes
+    Task<HttpOperationResult<IReadOnlyCollection<Admin.InvitationCodeListItemDto>>> GetAllInvitationCodesAsync(long? teacherId, string? status, CancellationToken cancellationToken);
+    Task<HttpOperationResult<Admin.InvitationCodeDetailsDto>> CreateInvitationCodeAsync(Admin.CreateInvitationCodeRequestDto request, CancellationToken cancellationToken);
+    Task<HttpOperationResult<Admin.InvitationCodeDetailsDto>> UpdateInvitationCodeAsync(long invitationCodeId, Admin.UpdateInvitationCodeRequestDto request, CancellationToken cancellationToken);
+    Task<HttpOperationResult> DeleteInvitationCodeAsync(long invitationCodeId, CancellationToken cancellationToken);
 }
 

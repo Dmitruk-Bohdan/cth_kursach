@@ -298,28 +298,42 @@ public sealed class ApiClient : IDisposable
         return await HandleResponse(response, cancellationToken);
     }
 
-    // Admin API methods - Exam Sources
-    public async Task<Result<IReadOnlyCollection<ExamSourceListItemDto>>> GetAllExamSourcesAsync(CancellationToken cancellationToken)
+    // Admin API methods - Invitation Codes
+    public async Task<Result<IReadOnlyCollection<InvitationCodeListItemDto>>> GetAllInvitationCodesAsync(long? teacherId, string? status, CancellationToken cancellationToken)
     {
-        var response = await _httpClient.GetAsync("/admin/exam-sources", cancellationToken);
-        return await HandleResponse<IReadOnlyCollection<ExamSourceListItemDto>>(response, cancellationToken);
+        var url = "/admin/invitation-codes";
+        var queryParams = new List<string>();
+        if (teacherId.HasValue)
+        {
+            queryParams.Add($"teacherId={teacherId.Value}");
+        }
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            queryParams.Add($"status={Uri.EscapeDataString(status)}");
+        }
+        if (queryParams.Count > 0)
+        {
+            url += "?" + string.Join("&", queryParams);
+        }
+        var response = await _httpClient.GetAsync(url, cancellationToken);
+        return await HandleResponse<IReadOnlyCollection<InvitationCodeListItemDto>>(response, cancellationToken);
     }
 
-    public async Task<Result<ExamSourceDetailsDto>> CreateExamSourceAsync(CreateExamSourceRequest request, CancellationToken cancellationToken)
+    public async Task<Result<InvitationCodeDetailsDto>> CreateInvitationCodeAsync(CreateInvitationCodeRequest request, CancellationToken cancellationToken)
     {
-        var response = await _httpClient.PostAsJsonAsync("/admin/exam-sources", request, _jsonOptions, cancellationToken);
-        return await HandleResponse<ExamSourceDetailsDto>(response, cancellationToken);
+        var response = await _httpClient.PostAsJsonAsync("/admin/invitation-codes", request, _jsonOptions, cancellationToken);
+        return await HandleResponse<InvitationCodeDetailsDto>(response, cancellationToken);
     }
 
-    public async Task<Result<ExamSourceDetailsDto>> UpdateExamSourceAsync(long examSourceId, UpdateExamSourceRequest request, CancellationToken cancellationToken)
+    public async Task<Result<InvitationCodeDetailsDto>> UpdateInvitationCodeAsync(long invitationCodeId, UpdateInvitationCodeRequest request, CancellationToken cancellationToken)
     {
-        var response = await _httpClient.PutAsJsonAsync($"/admin/exam-sources/{examSourceId}", request, _jsonOptions, cancellationToken);
-        return await HandleResponse<ExamSourceDetailsDto>(response, cancellationToken);
+        var response = await _httpClient.PutAsJsonAsync($"/admin/invitation-codes/{invitationCodeId}", request, _jsonOptions, cancellationToken);
+        return await HandleResponse<InvitationCodeDetailsDto>(response, cancellationToken);
     }
 
-    public async Task<Result> DeleteExamSourceAsync(long examSourceId, CancellationToken cancellationToken)
+    public async Task<Result> DeleteInvitationCodeAsync(long invitationCodeId, CancellationToken cancellationToken)
     {
-        var response = await _httpClient.DeleteAsync($"/admin/exam-sources/{examSourceId}", cancellationToken);
+        var response = await _httpClient.DeleteAsync($"/admin/invitation-codes/{invitationCodeId}", cancellationToken);
         return await HandleResponse(response, cancellationToken);
     }
 
@@ -616,7 +630,6 @@ public sealed class ApiClient : IDisposable
         public string SubjectName { get; init; } = string.Empty;
         public long? TopicId { get; init; }
         public string? TopicName { get; init; }
-        public long? ExamSourceId { get; init; }
         public string TaskType { get; init; } = string.Empty;
         public short Difficulty { get; init; }
         public string Statement { get; init; } = string.Empty;
@@ -747,43 +760,47 @@ public sealed class ApiClient : IDisposable
         public IReadOnlyCollection<TestTaskUpdateDto> Tasks { get; init; } = Array.Empty<TestTaskUpdateDto>();
     }
 
-    // Admin DTOs - Exam Sources
-    public sealed record ExamSourceListItemDto
+    // Admin DTOs - Invitation Codes
+    public sealed record InvitationCodeListItemDto
     {
         public long Id { get; init; }
-        public int Year { get; init; }
-        public int? VariantNumber { get; init; }
-        public string? Issuer { get; init; }
-        public string? Notes { get; init; }
+        public long TeacherId { get; init; }
+        public string TeacherName { get; init; } = string.Empty;
+        public string TeacherEmail { get; init; } = string.Empty;
+        public string Code { get; init; } = string.Empty;
+        public int? MaxUses { get; init; }
+        public int UsedCount { get; init; }
+        public DateTimeOffset? ExpiresAt { get; init; }
+        public string Status { get; init; } = string.Empty;
         public DateTime CreatedAt { get; init; }
-        public DateTime UpdatedAt { get; init; }
     }
 
-    public sealed record ExamSourceDetailsDto
+    public sealed record InvitationCodeDetailsDto
     {
         public long Id { get; init; }
-        public int Year { get; init; }
-        public int? VariantNumber { get; init; }
-        public string? Issuer { get; init; }
-        public string? Notes { get; init; }
+        public long TeacherId { get; init; }
+        public string TeacherName { get; init; } = string.Empty;
+        public string TeacherEmail { get; init; } = string.Empty;
+        public string Code { get; init; } = string.Empty;
+        public int? MaxUses { get; init; }
+        public int UsedCount { get; init; }
+        public DateTimeOffset? ExpiresAt { get; init; }
+        public string Status { get; init; } = string.Empty;
         public DateTime CreatedAt { get; init; }
-        public DateTime UpdatedAt { get; init; }
     }
 
-    public sealed record CreateExamSourceRequest
+    public sealed record CreateInvitationCodeRequest
     {
-        public int Year { get; init; }
-        public int? VariantNumber { get; init; }
-        public string? Issuer { get; init; }
-        public string? Notes { get; init; }
+        public long TeacherId { get; init; }
+        public int? MaxUses { get; init; }
+        public DateTimeOffset? ExpiresAt { get; init; }
     }
 
-    public sealed record UpdateExamSourceRequest
+    public sealed record UpdateInvitationCodeRequest
     {
-        public int? Year { get; init; }
-        public int? VariantNumber { get; init; }
-        public string? Issuer { get; init; }
-        public string? Notes { get; init; }
+        public int? MaxUses { get; init; }
+        public DateTimeOffset? ExpiresAt { get; init; }
+        public string? Status { get; init; }
     }
 }
 
