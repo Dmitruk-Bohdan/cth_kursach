@@ -1,2 +1,6 @@
-﻿// See https://aka.ms/new-console-template for more information
-Console.WriteLine("Hello, World!");
+﻿using CTH.AdminPanelClient;
+
+const string baseUrl = "https://localhost:7008";
+
+var app = new AdminPanelClientApp(baseUrl);
+await app.RunAsync();

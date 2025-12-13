@@ -34,7 +34,8 @@ namespace CTH.Services.Extensions
                 .AddScoped<ITeacherTestService, TeacherTestService>()
                 .AddScoped<IInvitationCodeService, InvitationCodeService>()
                 .AddScoped<IStudentTeacherService, StudentTeacherService>()
-                .AddScoped<ITestAccessService, TestAccessService>();
+                .AddScoped<ITestAccessService, TestAccessService>()
+                .AddScoped<IAdminService, AdminService>();
 
             return services;
         }
