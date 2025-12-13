@@ -15,6 +15,7 @@ public class TestRepository : ITestRepository
     private readonly string _getPublishedTestsQuery;
     private readonly string _getTestByIdQuery;
     private readonly string _getTestsByAuthorAndSubjectQuery;
+    private readonly string _getMixedTestsByAuthorAndSubjectQuery;
     private readonly string _getTestTasksQuery;
     private readonly string _createTestQuery;
     private readonly string _updateTestQuery;
@@ -33,6 +34,7 @@ public class TestRepository : ITestRepository
         _getTestByIdQuery = sqlQueryProvider.GetQuery("TestUseCases/Queries/GetTestById");
         _getTestsByAuthorAndSubjectQuery = sqlQueryProvider.GetQuery("TestUseCases/Queries/GetTestsByAuthorAndSubject");
         _getTestTasksQuery = sqlQueryProvider.GetQuery("TestUseCases/Queries/GetTestTasks");
+        _getMixedTestsByAuthorAndSubjectQuery = sqlQueryProvider.GetQuery("TestUseCases/Queries/GetMixedTestsByAuthorAndSubject");
         _createTestQuery = sqlQueryProvider.GetQuery("TestUseCases/Commands/CreateTest");
         _updateTestQuery = sqlQueryProvider.GetQuery("TestUseCases/Commands/UpdateTest");
         _deleteTestQuery = sqlQueryProvider.GetQuery("TestUseCases/Commands/DeleteTest");
@@ -132,6 +134,43 @@ public class TestRepository : ITestRepository
 
         var result = await _sqlExecutor.QueryAsync(
             _getTestsByAuthorAndSubjectQuery,
+            reader => new Test
+            {
+                Id = reader.GetInt64(reader.GetOrdinal("id")),
+                SubjectId = reader.GetInt64(reader.GetOrdinal("subject_id")),
+                TestKind = reader.GetString(reader.GetOrdinal("test_kind")),
+                Title = reader.GetString(reader.GetOrdinal("title")),
+                AuthorId = reader.IsDBNull(reader.GetOrdinal("author_id")) ? null : reader.GetInt64(reader.GetOrdinal("author_id")),
+                TimeLimitSec = reader.IsDBNull(reader.GetOrdinal("time_limit_sec")) ? null : reader.GetInt32(reader.GetOrdinal("time_limit_sec")),
+                AttemptsAllowed = reader.IsDBNull(reader.GetOrdinal("attempts_allowed")) ? null : reader.GetInt16(reader.GetOrdinal("attempts_allowed")),
+                Mode = reader.IsDBNull(reader.GetOrdinal("mode")) ? null : reader.GetString(reader.GetOrdinal("mode")),
+                IsPublished = reader.GetBoolean(reader.GetOrdinal("is_published")),
+                IsPublic = reader.GetBoolean(reader.GetOrdinal("is_public")),
+                IsStateArchive = reader.GetBoolean(reader.GetOrdinal("is_state_archive")),
+                CreatedAt = reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("created_at")),
+                UpdatedAt = reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("updated_at")),
+                Subject = new Subject
+                {
+                    Id = reader.GetInt64(reader.GetOrdinal("subject_id")),
+                    SubjectName = reader.GetString(reader.GetOrdinal("subject_name"))
+                }
+            },
+            parameters,
+            cancellationToken);
+
+        return result;
+    }
+
+    public async Task<IReadOnlyCollection<Test>> GetMixedTestsByAuthorAndSubjectAsync(long authorId, long subjectId, CancellationToken cancellationToken)
+    {
+        var parameters = new[]
+        {
+            new NpgsqlParameter("author_id", NpgsqlDbType.Bigint) { Value = authorId },
+            new NpgsqlParameter("subject_id", NpgsqlDbType.Bigint) { Value = subjectId }
+        };
+
+        var result = await _sqlExecutor.QueryAsync(
+            _getMixedTestsByAuthorAndSubjectQuery,
             reader => new Test
             {
                 Id = reader.GetInt64(reader.GetOrdinal("id")),

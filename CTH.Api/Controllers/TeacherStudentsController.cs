@@ -103,6 +103,63 @@ public class TeacherStudentsController : ControllerBase
         return result.ToActionResult();
     }
 
+    [HttpGet("{studentId:long}/attempts")]
+    public async Task<IActionResult> GetStudentAttempts(
+        long studentId,
+        [FromQuery] string? status,
+        [FromQuery] int limit = 50,
+        [FromQuery] int offset = 0,
+        CancellationToken cancellationToken = default)
+    {
+        var (userId, isAdmin) = GetCurrentUser();
+        if (!isAdmin && !IsTeacher())
+        {
+            return Forbid();
+        }
+
+        var result = await _invitationCodeService.GetStudentAttemptsAsync(userId, studentId, status, limit, offset, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpGet("{studentId:long}/attempts/{attemptId:long}/details")]
+    public async Task<IActionResult> GetStudentAttemptDetails(long studentId, long attemptId, CancellationToken cancellationToken)
+    {
+        var (userId, isAdmin) = GetCurrentUser();
+        if (!isAdmin && !IsTeacher())
+        {
+            return Forbid();
+        }
+
+        var result = await _invitationCodeService.GetStudentAttemptDetailsWithTasksAsync(userId, studentId, attemptId, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpGet("{studentId:long}/statistics/subjects")]
+    public async Task<IActionResult> GetStudentStatisticsSubjects(long studentId, CancellationToken cancellationToken)
+    {
+        var (userId, isAdmin) = GetCurrentUser();
+        if (!isAdmin && !IsTeacher())
+        {
+            return Forbid();
+        }
+
+        var result = await _invitationCodeService.GetStudentStatisticsSubjectsAsync(userId, studentId, cancellationToken);
+        return result.ToActionResult();
+    }
+
+    [HttpGet("{studentId:long}/statistics/subject/{subjectId:long}")]
+    public async Task<IActionResult> GetStudentSubjectStatistics(long studentId, long subjectId, CancellationToken cancellationToken)
+    {
+        var (userId, isAdmin) = GetCurrentUser();
+        if (!isAdmin && !IsTeacher())
+        {
+            return Forbid();
+        }
+
+        var result = await _invitationCodeService.GetStudentSubjectStatisticsAsync(userId, studentId, subjectId, cancellationToken);
+        return result.ToActionResult();
+    }
+
     private (long userId, bool isAdmin) GetCurrentUser()
     {
         var claim = User.FindFirst("Id") ?? User.FindFirst(ClaimTypes.NameIdentifier);

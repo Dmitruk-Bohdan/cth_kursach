@@ -2,6 +2,7 @@
 using CTH.Services.Extensions;
 using CTH.Services.Interfaces;
 using CTH.Services.Models.Dto.Attempts;
+using CTH.Services.Models.Dto.Tests;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -52,7 +53,8 @@ public class StudentTestsController : ControllerBase
     [HttpGet("{testId:long}")]
     public async Task<IActionResult> GetTestDetails(long testId, CancellationToken cancellationToken)
     {
-        var result = await _studentTestService.GetTestDetailsAsync(testId, cancellationToken);
+        var userId = GetCurrentUserId();
+        var result = await _studentTestService.GetTestDetailsAsync(testId, userId, cancellationToken);
         if (!result.IsSuccessful)
         {
             return result.ToActionResult();
@@ -72,6 +74,45 @@ public class StudentTestsController : ControllerBase
         }
 
         return Ok(result.Result);
+    }
+
+    [HttpPost("mixed/generate")]
+    public async Task<IActionResult> GenerateMixedTest(
+        [FromBody] GenerateMixedTestRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _studentTestService.GenerateMixedTestAsync(userId, request, cancellationToken);
+        if (!result.IsSuccessful)
+        {
+            return result.ToActionResult();
+        }
+
+        return Ok(result.Result);
+    }
+
+    [HttpGet("mixed")]
+    public async Task<IActionResult> GetMyMixedTests(
+        [FromQuery] long subjectId,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _studentTestService.GetMyMixedTestsAsync(userId, subjectId, cancellationToken);
+        if (!result.IsSuccessful)
+        {
+            return result.ToActionResult();
+        }
+
+        return Ok(result.Result);
+    }
+
+    [HttpDelete("mixed/{testId:long}")]
+    public async Task<IActionResult> DeleteMixedTest(
+        long testId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _studentTestService.DeleteMixedTestAsync(GetCurrentUserId(), testId, cancellationToken);
+        return result.ToActionResult();
     }
 
     private long GetCurrentUserId()

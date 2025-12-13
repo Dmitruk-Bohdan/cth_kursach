@@ -13,5 +13,6 @@ public interface ITeacherTestService
     Task<HttpOperationResult<IReadOnlyCollection<TestListItemDto>>> GetMyTestsAsync(long userId, long subjectId, CancellationToken cancellationToken);
     Task<HttpOperationResult<IReadOnlyCollection<TaskListItemDto>>> GetTasksBySubjectAsync(long subjectId, string? searchQuery, CancellationToken cancellationToken);
     Task<HttpOperationResult<TaskListItemDto>> CreateTaskAsync(long userId, bool isAdmin, CreateTaskRequestDto request, CancellationToken cancellationToken);
+    Task<HttpOperationResult<TaskListItemDto>> UpdateTaskAsync(long userId, bool isAdmin, long taskId, UpdateTaskRequestDto request, CancellationToken cancellationToken);
     Task<HttpOperationResult<IReadOnlyCollection<TopicListItemDto>>> GetTopicsBySubjectAsync(long subjectId, CancellationToken cancellationToken);
 }

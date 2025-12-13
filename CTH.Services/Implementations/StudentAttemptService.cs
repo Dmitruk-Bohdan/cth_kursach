@@ -32,7 +32,15 @@ public class StudentAttemptService : IStudentAttemptService
     {
         _logger.LogInformation("User {UserId} requested attempt start for test {TestId}", userId, testId);
         var test = await _testRepository.GetTestByIdAsync(testId, cancellationToken);
-        if (test == null || !test.IsPublished || (!test.IsPublic && !test.IsStateArchive))
+        
+        // Проверяем доступность теста: публичный/государственный или MIXED тест автора
+        var isAccessible = test != null 
+            && test.IsPublished 
+            && (test.IsPublic 
+                || test.IsStateArchive 
+                || (test.TestKind == "MIXED" && test.AuthorId == userId));
+        
+        if (!isAccessible)
         {
             _logger.LogWarning("Test {TestId} is not accessible for user {UserId}", testId, userId);
             return new HttpOperationResult<StartAttemptResponseDto>
@@ -255,6 +263,66 @@ public class StudentAttemptService : IStudentAttemptService
         };
 
         return new HttpOperationResult<AttemptDetailsDto>(dto, HttpStatusCode.OK);
+    }
+
+    public async Task<HttpOperationResult<AttemptDetailsWithTasksDto>> GetAttemptDetailsWithTasksAsync(long userId, long attemptId, CancellationToken cancellationToken)
+    {
+        var attempt = await _attemptRepository.GetByIdAsync(attemptId, userId, cancellationToken);
+        if (attempt == null)
+        {
+            return new HttpOperationResult<AttemptDetailsWithTasksDto>
+            {
+                Status = HttpStatusCode.NotFound,
+                Error = $"Attempt {attemptId} not found"
+            };
+        }
+
+        // Получаем задания теста с правильными ответами
+        var testTasks = await _testRepository.GetTestTasksAsync(attempt.TestId, cancellationToken);
+        
+        // Получаем ответы пользователя
+        var userAnswers = await _userAnswerRepository.GetByAttemptIdAsync(attemptId, cancellationToken);
+        var answersDict = userAnswers.ToDictionary(a => a.TaskId, a => a);
+
+        // Объединяем задания с ответами пользователя
+        var tasksWithAnswers = testTasks
+            .OrderBy(t => t.Position)
+            .Select(t => new AttemptTaskDetailsDto
+            {
+                TaskId = t.TaskId,
+                Position = t.Position,
+                TaskType = t.Task?.TaskType ?? string.Empty,
+                Statement = t.Task?.Statement ?? string.Empty,
+                Difficulty = t.Task?.Difficulty ?? default,
+                Explanation = t.Task?.Explanation,
+                CorrectAnswer = t.Task?.CorrectAnswer,
+                GivenAnswer = answersDict.TryGetValue(t.TaskId, out var answer) 
+                    ? answer.GivenAnswer.RootElement.GetRawText() 
+                    : null,
+                IsCorrect = answersDict.TryGetValue(t.TaskId, out var answer2) 
+                    ? answer2.IsCorrect 
+                    : null,
+                TimeSpentSec = answersDict.TryGetValue(t.TaskId, out var answer3) 
+                    ? answer3.TimeSpentSec 
+                    : null
+            })
+            .ToArray();
+
+        var dto = new AttemptDetailsWithTasksDto
+        {
+            Id = attempt.Id,
+            TestId = attempt.TestId,
+            TestTitle = attempt.Test?.Title ?? "Unknown",
+            Status = attempt.Status,
+            StartedAt = attempt.StartedAt,
+            FinishedAt = attempt.FinishedAt,
+            RawScore = attempt.RawScore,
+            ScaledScore = attempt.ScaledScore,
+            DurationSec = attempt.DurationSec,
+            Tasks = tasksWithAnswers
+        };
+
+        return new HttpOperationResult<AttemptDetailsWithTasksDto>(dto, HttpStatusCode.OK);
     }
 
     public async Task<HttpOperationResult<IReadOnlyCollection<AttemptListItemDto>>> GetInProgressAttemptsAsync(long userId, CancellationToken cancellationToken)

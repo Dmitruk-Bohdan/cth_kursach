@@ -11,5 +11,6 @@ public sealed class TaskListItemDto
     public short Difficulty { get; set; }
     public string Statement { get; set; } = string.Empty;
     public string? Explanation { get; set; }
+    public string? CorrectAnswer { get; set; }
 }
 

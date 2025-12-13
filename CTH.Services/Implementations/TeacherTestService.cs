@@ -284,7 +284,8 @@ public class TeacherTestService : ITeacherTestService
             TaskType = t.TaskType,
             Difficulty = t.Difficulty,
             Statement = t.Statement,
-            Explanation = t.Explanation
+            Explanation = t.Explanation,
+            CorrectAnswer = t.CorrectAnswer
         }).ToArray();
 
         return new HttpOperationResult<IReadOnlyCollection<TaskListItemDto>>(dto, HttpStatusCode.OK);
@@ -353,6 +354,102 @@ public class TeacherTestService : ITeacherTestService
         };
 
         return new HttpOperationResult<TaskListItemDto>(dto, HttpStatusCode.Created);
+    }
+
+    public async Task<HttpOperationResult<TaskListItemDto>> UpdateTaskAsync(long userId, bool isAdmin, long taskId, UpdateTaskRequestDto request, CancellationToken cancellationToken)
+    {
+        // Получаем существующее задание
+        var existingTask = await _taskRepository.GetTaskByIdAsync(taskId, cancellationToken);
+        if (existingTask == null)
+        {
+            return new HttpOperationResult<TaskListItemDto>
+            {
+                Status = HttpStatusCode.NotFound,
+                Error = $"Task {taskId} not found"
+            };
+        }
+
+        // Проверяем права доступа: преподаватель может редактировать задание только если оно используется в его тестах
+        if (!isAdmin)
+        {
+            var isUsedInTeacherTests = await _taskRepository.IsTaskUsedInTeacherTestsAsync(taskId, userId, cancellationToken);
+            if (!isUsedInTeacherTests)
+            {
+                return new HttpOperationResult<TaskListItemDto>
+                {
+                    Status = HttpStatusCode.Forbidden,
+                    Error = "You can only edit tasks that are used in your tests"
+                };
+            }
+        }
+
+        // Валидация difficulty, если указан
+        if (request.Difficulty.HasValue && (request.Difficulty.Value < 1 || request.Difficulty.Value > 5))
+        {
+            return new HttpOperationResult<TaskListItemDto>
+            {
+                Status = HttpStatusCode.BadRequest,
+                Error = "Difficulty must be between 1 and 5"
+            };
+        }
+
+        // Валидация task type, если указан
+        if (!string.IsNullOrWhiteSpace(request.TaskType))
+        {
+            var validTaskTypes = new[] { "numeric", "text" };
+            if (!validTaskTypes.Contains(request.TaskType.ToLower()))
+            {
+                return new HttpOperationResult<TaskListItemDto>
+                {
+                    Status = HttpStatusCode.BadRequest,
+                    Error = $"Task type must be one of: {string.Join(", ", validTaskTypes)}"
+                };
+            }
+        }
+
+        // Обновляем только указанные поля
+        var updatedTask = new TaskItem
+        {
+            Id = existingTask.Id,
+            SubjectId = existingTask.SubjectId,
+            TopicId = request.TopicId ?? existingTask.TopicId,
+            TaskType = !string.IsNullOrWhiteSpace(request.TaskType) ? request.TaskType.ToLower() : existingTask.TaskType,
+            Difficulty = request.Difficulty ?? existingTask.Difficulty,
+            Statement = !string.IsNullOrWhiteSpace(request.Statement) ? request.Statement : existingTask.Statement,
+            CorrectAnswer = !string.IsNullOrWhiteSpace(request.CorrectAnswer) ? request.CorrectAnswer : existingTask.CorrectAnswer,
+            Explanation = request.Explanation ?? existingTask.Explanation,
+            IsActive = request.IsActive ?? existingTask.IsActive
+        };
+
+        await _taskRepository.UpdateAsync(updatedTask, cancellationToken);
+
+        // Получаем обновленное задание для возврата
+        var tasks = await _taskRepository.GetTasksBySubjectAsync(existingTask.SubjectId, taskId.ToString(), cancellationToken);
+        var updatedTaskItem = tasks.FirstOrDefault(t => t.Id == taskId);
+
+        if (updatedTaskItem == null)
+        {
+            return new HttpOperationResult<TaskListItemDto>
+            {
+                Status = HttpStatusCode.InternalServerError,
+                Error = "Failed to retrieve updated task"
+            };
+        }
+
+        var dto = new TaskListItemDto
+        {
+            Id = updatedTaskItem.Id,
+            SubjectId = updatedTaskItem.SubjectId,
+            TopicId = updatedTaskItem.TopicId,
+            TopicName = updatedTaskItem.Topic?.TopicName,
+            TopicCode = updatedTaskItem.Topic?.TopicCode,
+            TaskType = updatedTaskItem.TaskType,
+            Difficulty = updatedTaskItem.Difficulty,
+            Statement = updatedTaskItem.Statement,
+            Explanation = updatedTaskItem.Explanation
+        };
+
+        return new HttpOperationResult<TaskListItemDto>(dto, HttpStatusCode.OK);
     }
 
     public async Task<HttpOperationResult<IReadOnlyCollection<TopicListItemDto>>> GetTopicsBySubjectAsync(long subjectId, CancellationToken cancellationToken)

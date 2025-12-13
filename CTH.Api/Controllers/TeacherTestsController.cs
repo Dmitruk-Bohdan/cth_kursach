@@ -124,6 +124,19 @@ public class TeacherTestsController : ControllerBase
         return CreatedAtAction(nameof(GetTasksBySubject), new { subjectId = request.SubjectId }, result.Result);
     }
 
+    [HttpPut("tasks/{taskId:long}")]
+    public async Task<IActionResult> UpdateTask(long taskId, [FromBody] CTH.Services.Models.Dto.Tasks.UpdateTaskRequestDto request, CancellationToken cancellationToken)
+    {
+        var (userId, isAdmin) = GetCurrentUser();
+        if (!isAdmin && !IsTeacher())
+        {
+            return Forbid();
+        }
+
+        var result = await _teacherTestService.UpdateTaskAsync(userId, isAdmin, taskId, request, cancellationToken);
+        return result.ToActionResult();
+    }
+
     [HttpGet("topics")]
     public async Task<IActionResult> GetTopicsBySubject([FromQuery] long subjectId, CancellationToken cancellationToken)
     {

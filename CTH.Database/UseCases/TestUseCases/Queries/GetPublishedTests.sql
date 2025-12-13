@@ -25,6 +25,7 @@ WHERE t.is_published = TRUE
               AND ts.student_id = @user_id
               AND ts.status IN ('active', 'approved')
         ))
+     OR (@user_id IS NOT NULL AND t.test_kind = 'MIXED' AND t.author_id = @user_id)
   )
   AND (@subject_id IS NULL OR t.subject_id = @subject_id)
   AND (@only_teachers = FALSE OR (@user_id IS NOT NULL AND EXISTS (

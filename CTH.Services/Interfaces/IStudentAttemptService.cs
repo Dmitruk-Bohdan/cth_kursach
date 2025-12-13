@@ -11,6 +11,7 @@ public interface IStudentAttemptService
     Task<HttpOperationResult> AbortAttemptAsync(long userId, long attemptId, CancellationToken cancellationToken);
     Task<HttpOperationResult> ResumeAttemptAsync(long userId, long attemptId, CancellationToken cancellationToken);
     Task<HttpOperationResult<AttemptDetailsDto>> GetAttemptAsync(long userId, long attemptId, CancellationToken cancellationToken);
+    Task<HttpOperationResult<AttemptDetailsWithTasksDto>> GetAttemptDetailsWithTasksAsync(long userId, long attemptId, CancellationToken cancellationToken);
     Task<HttpOperationResult<IReadOnlyCollection<AttemptListItemDto>>> GetInProgressAttemptsAsync(long userId, CancellationToken cancellationToken);
     Task<HttpOperationResult<IReadOnlyCollection<AttemptListItemDto>>> GetAttemptsAsync(long userId, string? status, int limit, int offset, CancellationToken cancellationToken);
 }

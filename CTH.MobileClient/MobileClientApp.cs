@@ -76,7 +76,8 @@ public sealed class MobileClientApp : IDisposable
         Console.WriteLine("6) View statistics");
         Console.WriteLine("7) View recommendations");
         Console.WriteLine("8) My teachers");
-        Console.WriteLine("9) Logout");
+        Console.WriteLine("9) My mixed tests");
+        Console.WriteLine("10) Logout");
         Console.WriteLine("0) Exit");
         Console.Write("Select option: ");
 
@@ -110,6 +111,9 @@ public sealed class MobileClientApp : IDisposable
                 await ShowMyTeachersAsync();
                 break;
             case "9":
+                await ShowMyMixedTestsAsync();
+                break;
+            case "10":
                 await LogoutAsync();
                 break;
             case "0":
@@ -337,7 +341,7 @@ public sealed class MobileClientApp : IDisposable
         var details = result.Value!;
         Console.WriteLine($"Test #{details.Id}: {details.Title}");
         Console.WriteLine($"Type: {details.TestKind}, Subject: {FormatSubject(details.SubjectId)}");
-        Console.WriteLine($"Time limit: {(details.TimeLimitSec.HasValue ? $"{details.TimeLimitSec.Value} sec" : "Unlimited")}");
+        Console.WriteLine($"Time limit: {(details.TimeLimitSec.HasValue ? $"{details.TimeLimitSec.Value / 60} minute(s)" : "Unlimited")}");
         Console.WriteLine($"Attempts allowed: {(details.AttemptsAllowed.HasValue ? details.AttemptsAllowed : "unlimited")}");
         Console.WriteLine($"Public: {details.IsPublic}, State archive: {details.IsStateArchive}");
         Console.WriteLine("Tasks:");
@@ -577,8 +581,28 @@ public sealed class MobileClientApp : IDisposable
         }
         
         Console.WriteLine();
-        Console.WriteLine("Press Enter to return to menu...");
-        Console.ReadLine();
+        Console.WriteLine("Options:");
+        Console.WriteLine("1) View attempt details");
+        Console.WriteLine("0) Back to menu");
+        Console.Write("Choose option: ");
+        var choice = Console.ReadLine();
+        Console.WriteLine();
+
+        if (choice == "1" && attemptList.Count > 0)
+        {
+            Console.Write("Enter attempt number to view details: ");
+            if (int.TryParse(Console.ReadLine(), out var attemptNumber) && attemptNumber >= 1 && attemptNumber <= attemptList.Count)
+            {
+                var selectedAttempt = attemptList[attemptNumber - 1];
+                await ShowAttemptDetailsAsync(selectedAttempt.Id);
+            }
+            else
+            {
+                Console.WriteLine("Invalid attempt number.");
+                Console.WriteLine("Press Enter to continue...");
+                Console.ReadLine();
+            }
+        }
     }
 
     private async Task ViewStatisticsAsync()
@@ -705,9 +729,38 @@ public sealed class MobileClientApp : IDisposable
         switch (choice)
         {
             case "1":
-                Console.WriteLine("This feature will be implemented later.");
-                Console.WriteLine("Press Enter to continue...");
-                Console.ReadLine();
+                // Создаем тест из проблемных тем (Top3ErrorTopics + OtherTopics)
+                var problematicTopics = new List<ApiClient.TopicStatistics>();
+                problematicTopics.AddRange(stats.Top3ErrorTopics);
+                problematicTopics.AddRange(stats.OtherTopics);
+                
+                // Фильтруем только темы с валидным TopicId
+                var validTopics = problematicTopics
+                    .Where(t => t.TopicId.HasValue)
+                    .Take(5)
+                    .Select(t => new ApiClient.TopicRecommendation(
+                        t.TopicId!.Value,
+                        t.TopicName,
+                        null,
+                        t.AttemptsTotal,
+                        t.CorrectTotal,
+                        t.AccuracyPercentage,
+                        t.LastAttemptAt,
+                        null,
+                        null
+                    )).ToList();
+                
+                if (validTopics.Count > 0)
+                {
+                    // Берем первые 5 тем, по 5 заданий каждая, сложность medium
+                    await CreateMixedTestFromTopicsAsync(subjectId, validTopics, "problematic topics", tasksPerTopic: 5, difficulty: 3);
+                }
+                else
+                {
+                    Console.WriteLine("No problematic topics found.");
+                    Console.WriteLine("Press Enter to continue...");
+                    Console.ReadLine();
+                }
                 break;
             case "0":
                 break;
@@ -849,7 +902,7 @@ public sealed class MobileClientApp : IDisposable
             // Меню действий
             Console.WriteLine("Options:");
             Console.WriteLine("1) Create test for critical topics");
-            Console.WriteLine("2) Create test for Leitner topics");
+            Console.WriteLine("2) Create test for topics to review");
             Console.WriteLine("3) Create test for unstudied topic");
             Console.WriteLine("4) Change critical threshold");
             Console.WriteLine("0) Back to menu");
@@ -862,9 +915,9 @@ public sealed class MobileClientApp : IDisposable
                 case "1":
                     if (recommendations.CriticalTopics.Count > 0)
                     {
-                        Console.WriteLine("This feature will be implemented later.");
-                        Console.WriteLine("Press Enter to continue...");
-                        Console.ReadLine();
+                        // Первые 5 критических тем, по 5 заданий каждая, сложность medium
+                        var selectedTopics = recommendations.CriticalTopics.Take(5).ToList();
+                        await CreateMixedTestFromTopicsAsync(subjectId, selectedTopics, "critical topics", tasksPerTopic: 5, difficulty: 3);
                     }
                     else
                     {
@@ -876,9 +929,9 @@ public sealed class MobileClientApp : IDisposable
                 case "2":
                     if (recommendations.LeitnerTopics.Count > 0)
                     {
-                        Console.WriteLine("This feature will be implemented later.");
-                        Console.WriteLine("Press Enter to continue...");
-                        Console.ReadLine();
+                        // Первые 5 тем на повторение, по 5 заданий каждая, сложность medium
+                        var selectedTopics = recommendations.LeitnerTopics.Take(5).ToList();
+                        await CreateMixedTestFromTopicsAsync(subjectId, selectedTopics, "topics to review", tasksPerTopic: 5, difficulty: 3);
                     }
                     else
                     {
@@ -909,10 +962,9 @@ public sealed class MobileClientApp : IDisposable
                         if (int.TryParse(topicInput, out var topicIndex) && topicIndex >= 1 && topicIndex <= recommendations.UnstudiedTopics.Count)
                         {
                             var selectedTopic = recommendations.UnstudiedTopics.ElementAt(topicIndex - 1);
-                            Console.WriteLine($"Creating test for topic '{selectedTopic.TopicName}'...");
-                            Console.WriteLine("This feature will be implemented later.");
-                            Console.WriteLine("Press Enter to continue...");
-                            Console.ReadLine();
+                            var topics = new List<ApiClient.TopicRecommendation> { selectedTopic };
+                            // 25 заданий, сложность easy
+                            await CreateMixedTestFromTopicsAsync(subjectId, topics, $"topic '{selectedTopic.TopicName}'", tasksPerTopic: 25, difficulty: 2);
                         }
                         else
                         {
@@ -1034,10 +1086,6 @@ public sealed class MobileClientApp : IDisposable
             Console.WriteLine($"--- Task {currentIndex + 1}/{orderedTasks.Length} ---");
             Console.WriteLine($"Type: {task.TaskType}, Difficulty: {task.Difficulty}");
             Console.WriteLine(task.Statement);
-            if (!string.IsNullOrWhiteSpace(task.Explanation))
-            {
-                Console.WriteLine($"Hint: {task.Explanation}");
-            }
 
             Console.WriteLine($"Progress: answered {answered}/{orderedTasks.Length}");
             Console.WriteLine("1) Submit or update answer");
@@ -1453,6 +1501,454 @@ public sealed class MobileClientApp : IDisposable
 
         Console.WriteLine("Teacher removed successfully.");
         Console.WriteLine();
+    }
+
+    private async Task ShowMyMixedTestsAsync()
+    {
+        while (!_cts.IsCancellationRequested)
+        {
+            Console.WriteLine("=== My Mixed Tests ===");
+            Console.WriteLine("1) Create mixed test");
+            Console.WriteLine("2) View my mixed tests");
+            Console.WriteLine("3) Delete mixed test");
+            Console.WriteLine("0) Back");
+            Console.Write("Select option: ");
+
+            var choice = Console.ReadLine();
+            Console.WriteLine();
+
+            switch (choice)
+            {
+                case "1":
+                    await CreateMixedTestAsync();
+                    break;
+                case "2":
+                    await ViewMyMixedTestsListAsync();
+                    break;
+                case "3":
+                    await DeleteMixedTestAsync();
+                    break;
+                case "0":
+                    return;
+                default:
+                    Console.WriteLine("Unknown option.");
+                    break;
+            }
+        }
+    }
+
+    private async Task CreateMixedTestAsync()
+    {
+        Console.WriteLine("=== Create Mixed Test ===");
+        
+        // Выбор предмета
+        var subjectsResult = await _apiClient.GetAllSubjectsAsync(_cts.Token);
+        if (!subjectsResult.Success || subjectsResult.Value == null || !subjectsResult.Value.Any())
+        {
+            Console.WriteLine("Error: Could not load subjects.");
+            return;
+        }
+
+        var subjects = subjectsResult.Value.ToList();
+        Console.WriteLine("Select subject:");
+        for (int i = 0; i < subjects.Count; i++)
+        {
+            Console.WriteLine($"{i + 1}) {subjects[i].SubjectName}");
+        }
+        Console.Write("Enter subject number: ");
+        if (!int.TryParse(Console.ReadLine(), out var subjectIndex) || subjectIndex < 1 || subjectIndex > subjects.Count)
+        {
+            Console.WriteLine("Invalid subject number.");
+            return;
+        }
+
+        var subjectId = subjects[subjectIndex - 1].Id;
+        Console.WriteLine();
+
+        // Ввод названия теста (опционально)
+        Console.Write("Enter test title (or press Enter for auto-generated): ");
+        var titleInput = Console.ReadLine()?.Trim();
+        string? title = string.IsNullOrWhiteSpace(titleInput) ? null : titleInput;
+        Console.WriteLine();
+
+        // Ввод time limit
+        Console.Write("Enter time limit in minutes (or press Enter for unlimited): ");
+        var timeLimitInput = Console.ReadLine()?.Trim();
+        int? timeLimitSec = null;
+        if (!string.IsNullOrWhiteSpace(timeLimitInput) && int.TryParse(timeLimitInput, out var minutes) && minutes > 0)
+        {
+            timeLimitSec = minutes * 60; // Конвертируем минуты в секунды
+        }
+        Console.WriteLine();
+
+        // Выбор тем
+        Console.WriteLine("Select topics for the test:");
+        Console.WriteLine("1) Use default (top 3 error topics, 10 tasks each, medium difficulty)");
+        Console.WriteLine("2) Custom selection");
+        Console.Write("Enter option: ");
+        var selectionChoice = Console.ReadLine();
+        Console.WriteLine();
+
+        var topics = new List<ApiClient.TopicSelection>();
+
+        if (selectionChoice == "1")
+        {
+            // Используем дефолтные значения - темы будут определены на сервере
+            topics = new List<ApiClient.TopicSelection>();
+        }
+        else if (selectionChoice == "2")
+        {
+            // Получаем статистику для выбора тем
+            var statsResult = await _apiClient.GetSubjectStatisticsAsync(subjectId, _cts.Token);
+            if (!statsResult.Success || statsResult.Value == null)
+            {
+                Console.WriteLine("Error: Could not load statistics.");
+                return;
+            }
+
+            var stats = statsResult.Value;
+            var allTopics = new List<(long? TopicId, string TopicName)>();
+            
+            // Добавляем темы с ошибками
+            foreach (var topic in stats.Top3ErrorTopics)
+            {
+                if (topic.TopicId.HasValue)
+                {
+                    allTopics.Add((topic.TopicId.Value, topic.TopicName));
+                }
+            }
+            foreach (var topic in stats.OtherTopics)
+            {
+                if (topic.TopicId.HasValue && !allTopics.Any(t => t.TopicId == topic.TopicId))
+                {
+                    allTopics.Add((topic.TopicId.Value, topic.TopicName));
+                }
+            }
+            foreach (var topic in stats.UnattemptedTopics)
+            {
+                if (topic.TopicId.HasValue && !allTopics.Any(t => t.TopicId == topic.TopicId))
+                {
+                    allTopics.Add((topic.TopicId.Value, topic.TopicName));
+                }
+            }
+
+            if (allTopics.Count == 0)
+            {
+                Console.WriteLine("No topics available.");
+                return;
+            }
+
+            Console.WriteLine("Available topics:");
+            for (int i = 0; i < allTopics.Count; i++)
+            {
+                Console.WriteLine($"{i + 1}) {allTopics[i].TopicName} (ID: {allTopics[i].TopicId})");
+            }
+            Console.WriteLine("0) Finish selection");
+            Console.WriteLine();
+
+            while (true)
+            {
+                Console.Write("Enter topic number (or 0 to finish): ");
+                var topicInput = Console.ReadLine();
+                if (topicInput == "0")
+                {
+                    break;
+                }
+
+                if (!int.TryParse(topicInput, out var topicIndex) || topicIndex < 1 || topicIndex > allTopics.Count)
+                {
+                    Console.WriteLine("Invalid topic number.");
+                    continue;
+                }
+
+                var selectedTopic = allTopics[topicIndex - 1];
+                Console.Write($"Enter number of tasks for '{selectedTopic.TopicName}' (default 10): ");
+                var taskCountInput = Console.ReadLine()?.Trim();
+                var taskCount = 10;
+                if (!string.IsNullOrWhiteSpace(taskCountInput) && int.TryParse(taskCountInput, out var count))
+                {
+                    taskCount = count;
+                }
+
+                Console.WriteLine("Select difficulty:");
+                Console.WriteLine("1) Very easy");
+                Console.WriteLine("2) Easy");
+                Console.WriteLine("3) Medium");
+                Console.WriteLine("4) Hard");
+                Console.WriteLine("5) Very hard");
+                Console.Write("Enter difficulty (1-5, default 3): ");
+                var difficultyInput = Console.ReadLine()?.Trim();
+                var difficulty = (short)3;
+                if (!string.IsNullOrWhiteSpace(difficultyInput) && short.TryParse(difficultyInput, out var diff) && diff >= 1 && diff <= 5)
+                {
+                    difficulty = diff;
+                }
+
+                topics.Add(new ApiClient.TopicSelection(selectedTopic.TopicId!.Value, taskCount, difficulty));
+                Console.WriteLine($"Added: {selectedTopic.TopicName} - {taskCount} tasks, difficulty {difficulty}");
+                Console.WriteLine();
+            }
+        }
+        else
+        {
+            Console.WriteLine("Invalid option.");
+            return;
+        }
+
+        // Создаем тест
+        Console.WriteLine("Creating mixed test...");
+        var request = new ApiClient.GenerateMixedTestRequest(
+            subjectId,
+            timeLimitSec,
+            title,
+            topics);
+
+        var result = await _apiClient.GenerateMixedTestAsync(request, _cts.Token);
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(result.Error)}");
+            return;
+        }
+
+        var test = result.Value!;
+        Console.WriteLine($"Mixed test created successfully!");
+        Console.WriteLine($"Test ID: {test.Id}");
+        Console.WriteLine($"Title: {test.Title}");
+        Console.WriteLine($"Tasks: {test.Tasks.Count}");
+        Console.WriteLine();
+    }
+
+    private async Task ViewMyMixedTestsListAsync()
+    {
+        Console.WriteLine("=== My Mixed Tests List ===");
+        
+        // Выбор предмета
+        var subjectsResult = await _apiClient.GetAllSubjectsAsync(_cts.Token);
+        if (!subjectsResult.Success || subjectsResult.Value == null || !subjectsResult.Value.Any())
+        {
+            Console.WriteLine("Error: Could not load subjects.");
+            return;
+        }
+
+        var subjects = subjectsResult.Value.ToList();
+        Console.WriteLine("Select subject:");
+        for (int i = 0; i < subjects.Count; i++)
+        {
+            Console.WriteLine($"{i + 1}) {subjects[i].SubjectName}");
+        }
+        Console.Write("Enter subject number: ");
+        if (!int.TryParse(Console.ReadLine(), out var subjectIndex) || subjectIndex < 1 || subjectIndex > subjects.Count)
+        {
+            Console.WriteLine("Invalid subject number.");
+            return;
+        }
+
+        var subjectId = subjects[subjectIndex - 1].Id;
+        Console.WriteLine();
+
+        var result = await _apiClient.GetMyMixedTestsAsync(subjectId, _cts.Token);
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(result.Error)}");
+            Console.WriteLine();
+            return;
+        }
+
+        var tests = result.Value!;
+        if (tests.Count == 0)
+        {
+            Console.WriteLine("You have no mixed tests yet.");
+            Console.WriteLine("Use option 1 to create a mixed test.");
+            Console.WriteLine();
+            return;
+        }
+
+        Console.WriteLine($"Found {tests.Count} mixed test(s):");
+        foreach (var test in tests)
+        {
+            var timeLimitInfo = test.TimeLimitSec.HasValue ? $"{test.TimeLimitSec.Value / 60} minute(s)" : "Unlimited";
+            Console.WriteLine($"- #{test.Id}: {test.Title}");
+            Console.WriteLine($"  Time limit: {timeLimitInfo} | Mode: {test.Mode ?? "N/A"}");
+        }
+        Console.WriteLine();
+    }
+
+    private async Task DeleteMixedTestAsync()
+    {
+        Console.WriteLine("=== Delete Mixed Test ===");
+        Console.Write("Enter test ID to delete: ");
+        if (!long.TryParse(Console.ReadLine(), out var testId))
+        {
+            Console.WriteLine("Invalid test ID.");
+            return;
+        }
+
+        Console.Write($"Are you sure you want to delete test #{testId}? (y/n): ");
+        var confirm = Console.ReadLine()?.Trim().ToLower();
+        if (confirm != "y")
+        {
+            Console.WriteLine("Deletion cancelled.");
+            return;
+        }
+
+        Console.WriteLine("Deleting test...");
+        var result = await _apiClient.DeleteMixedTestAsync(testId, _cts.Token);
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(result.Error)}");
+            return;
+        }
+
+        Console.WriteLine("Test deleted successfully.");
+        Console.WriteLine();
+    }
+
+    private async Task CreateMixedTestFromTopicsAsync(
+        long subjectId, 
+        IReadOnlyCollection<ApiClient.TopicRecommendation> topics, 
+        string description,
+        int tasksPerTopic = 10,
+        short difficulty = 3)
+    {
+        Console.WriteLine($"=== Create Mixed Test for {description} ===");
+        
+        // Ввод названия теста (опционально)
+        Console.Write("Enter test title (or press Enter for auto-generated): ");
+        var titleInput = Console.ReadLine()?.Trim();
+        string? title = string.IsNullOrWhiteSpace(titleInput) ? null : titleInput;
+        Console.WriteLine();
+
+        // Ввод time limit
+        Console.Write("Enter time limit in minutes (or press Enter for unlimited): ");
+        var timeLimitInput = Console.ReadLine()?.Trim();
+        int? timeLimitSec = null;
+        if (!string.IsNullOrWhiteSpace(timeLimitInput) && int.TryParse(timeLimitInput, out var minutes) && minutes > 0)
+        {
+            timeLimitSec = minutes * 60; // Конвертируем минуты в секунды
+        }
+        Console.WriteLine();
+
+        // Преобразуем темы рекомендаций в TopicSelection
+        var topicSelections = topics.Select(t => new ApiClient.TopicSelection(
+            t.TopicId,
+            tasksPerTopic,
+            difficulty
+        )).ToList();
+
+        // Создаем тест
+        Console.WriteLine("Creating mixed test...");
+        var request = new ApiClient.GenerateMixedTestRequest(
+            subjectId,
+            timeLimitSec,
+            title,
+            topicSelections);
+
+        var result = await _apiClient.GenerateMixedTestAsync(request, _cts.Token);
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(result.Error)}");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        var test = result.Value!;
+        Console.WriteLine($"Mixed test created successfully!");
+        Console.WriteLine($"Test ID: {test.Id}");
+        Console.WriteLine($"Title: {test.Title}");
+        Console.WriteLine($"Tasks: {test.Tasks.Count}");
+        Console.WriteLine("Press Enter to continue...");
+        Console.ReadLine();
+    }
+
+    private async Task ShowAttemptDetailsAsync(long attemptId)
+    {
+        Console.WriteLine("=== Attempt Details ===");
+        Console.WriteLine("Loading attempt details...");
+        Console.WriteLine();
+
+        var result = await _apiClient.GetAttemptDetailsWithTasksAsync(attemptId, _cts.Token);
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(result.Error)}");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        var details = result.Value!;
+        
+        Console.WriteLine($"Attempt #{details.Id}: {details.TestTitle}");
+        Console.WriteLine($"Status: {details.Status}");
+        Console.WriteLine($"Started: {details.StartedAt:yyyy-MM-dd HH:mm:ss}");
+        if (details.FinishedAt.HasValue)
+        {
+            Console.WriteLine($"Finished: {details.FinishedAt.Value:yyyy-MM-dd HH:mm:ss}");
+        }
+        if (details.DurationSec.HasValue)
+        {
+            var minutes = details.DurationSec.Value / 60;
+            var seconds = details.DurationSec.Value % 60;
+            Console.WriteLine($"Duration: {minutes} minute(s) {seconds} second(s)");
+        }
+        if (details.RawScore.HasValue)
+        {
+            Console.WriteLine($"Score: {details.RawScore.Value:F1}");
+        }
+        Console.WriteLine();
+
+        var tasks = details.Tasks.OrderBy(t => t.Position).ToList();
+        Console.WriteLine($"Tasks ({tasks.Count}):");
+        Console.WriteLine();
+
+        for (int i = 0; i < tasks.Count; i++)
+        {
+            var task = tasks[i];
+            Console.WriteLine($"--- Task {i + 1}/{tasks.Count} ---");
+            Console.WriteLine($"Type: {task.TaskType}, Difficulty: {task.Difficulty}");
+            Console.WriteLine($"Statement: {task.Statement}");
+            Console.WriteLine();
+
+            // Ответ пользователя
+            if (task.GivenAnswer != null)
+            {
+                var answerStatus = task.IsCorrect == true ? "Correct" : task.IsCorrect == false ? "Incorrect" : "Unknown";
+                Console.WriteLine($"Your answer: {task.GivenAnswer} ({answerStatus})");
+            }
+            else
+            {
+                Console.WriteLine("Your answer: Not answered");
+            }
+
+            // Правильный ответ
+            if (task.CorrectAnswer != null)
+            {
+                Console.WriteLine($"Correct answer: {task.CorrectAnswer}");
+            }
+
+            // Объяснение
+            if (!string.IsNullOrWhiteSpace(task.Explanation))
+            {
+                Console.WriteLine($"Explanation: {task.Explanation}");
+            }
+
+            // Время, потраченное на задание
+            if (task.TimeSpentSec.HasValue)
+            {
+                var taskMinutes = task.TimeSpentSec.Value / 60;
+                var taskSeconds = task.TimeSpentSec.Value % 60;
+                Console.WriteLine($"Time spent: {taskMinutes} minute(s) {taskSeconds} second(s)");
+            }
+
+            if (i < tasks.Count - 1)
+            {
+                Console.WriteLine();
+            }
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Press Enter to continue...");
+        Console.ReadLine();
     }
 
     public void Dispose()

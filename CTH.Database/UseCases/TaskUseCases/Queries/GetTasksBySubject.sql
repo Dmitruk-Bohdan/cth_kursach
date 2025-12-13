@@ -5,6 +5,7 @@ SELECT
     ti.task_type,
     ti.difficulty,
     ti.statement,
+    ti.correct_answer,
     ti.explanation,
     ti.is_active,
     t.topic_name,

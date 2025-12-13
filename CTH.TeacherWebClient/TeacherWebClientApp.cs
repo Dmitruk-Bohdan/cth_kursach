@@ -168,9 +168,10 @@ public sealed class TeacherWebClientApp : IDisposable
             Console.WriteLine($"=== Subject: {subject.SubjectName} ===");
             Console.WriteLine("1) Create test");
             Console.WriteLine("2) Manage current tests");
-            Console.WriteLine("3) Manage student bindings");
-            Console.WriteLine("4) Select another subject");
-            Console.WriteLine("5) Logout");
+            Console.WriteLine("3) Manage invitation codes");
+            Console.WriteLine("4) Manage students");
+            Console.WriteLine("5) Select another subject");
+            Console.WriteLine("6) Logout");
             Console.WriteLine("0) Exit");
             Console.Write("Select option: ");
 
@@ -186,11 +187,14 @@ public sealed class TeacherWebClientApp : IDisposable
                     await ManageTestsAsync(subject.Id, subject.SubjectName);
                     break;
                 case "3":
-                    await ManageStudentBindingsAsync();
+                    await ManageInvitationCodesAsync();
                     break;
                 case "4":
-                    return; // Вернуться к выбору предмета
+                    await ManageStudentsAsync();
+                    break;
                 case "5":
+                    return; // Вернуться к выбору предмета
+                case "6":
                     await LogoutAsync();
                     return;
                 case "0":
@@ -296,10 +300,10 @@ public sealed class TeacherWebClientApp : IDisposable
                     await AddTaskAsync(testData);
                     break;
                 case "8":
-                    RemoveTask(testData);
+                    await RemoveTaskAsync(testData);
                     break;
                 case "9":
-                    ViewTasks(testData);
+                    await ViewTasksAsync(testData);
                     break;
                 case "10":
                     if (await TryCreateTestAsync(testData))
@@ -828,7 +832,7 @@ public sealed class TeacherWebClientApp : IDisposable
         Console.WriteLine($"Task {taskId} ({selectedTask.TaskType}) added at position {position}.");
     }
 
-    private void RemoveTask(TestCreationData data)
+    private async Task RemoveTaskAsync(TestCreationData data)
     {
         if (data.Tasks.Count == 0)
         {
@@ -836,7 +840,7 @@ public sealed class TeacherWebClientApp : IDisposable
             return;
         }
 
-        ViewTasks(data);
+        await ViewTasksAsync(data);
         Console.Write("Enter position of task to remove: ");
         if (!int.TryParse(Console.ReadLine(), out var position))
         {
@@ -855,7 +859,7 @@ public sealed class TeacherWebClientApp : IDisposable
         Console.WriteLine($"Task at position {position} removed.");
     }
 
-    private void ViewTasks(TestCreationData data)
+    private async Task ViewTasksAsync(TestCreationData data)
     {
         if (data.Tasks.Count == 0)
         {
@@ -863,11 +867,265 @@ public sealed class TeacherWebClientApp : IDisposable
             return;
         }
 
-        Console.WriteLine("Tasks:");
-        foreach (var task in data.Tasks.OrderBy(t => t.Position))
+        Console.WriteLine("Loading task details...");
+        var taskIds = data.Tasks.Select(t => t.TaskId).ToList();
+        var tasksResult = await _apiClient.GetTasksBySubjectAsync(data.SubjectId, null, _cts.Token);
+        
+        if (!tasksResult.Success || tasksResult.Value == null)
         {
-            Console.WriteLine($"  Position {task.Position}: Task ID {task.TaskId}");
+            Console.WriteLine($"Failed to load tasks: {tasksResult.Error ?? "Unknown error"}");
+            Console.WriteLine();
+            // Показываем хотя бы ID и позиции
+            Console.WriteLine("Tasks:");
+            foreach (var task in data.Tasks.OrderBy(t => t.Position))
+            {
+                Console.WriteLine($"  Position {task.Position}: Task ID {task.TaskId}");
+            }
+            return;
         }
+
+        var allTasks = tasksResult.Value.ToDictionary(t => t.Id, t => t);
+
+        Console.WriteLine();
+        Console.WriteLine("Tasks:");
+        Console.WriteLine(new string('-', 100));
+        foreach (var taskData in data.Tasks.OrderBy(t => t.Position))
+        {
+            if (allTasks.TryGetValue(taskData.TaskId, out var task))
+            {
+                var topicInfo = !string.IsNullOrWhiteSpace(task.TopicName) 
+                    ? $" [{task.TopicName}]" 
+                    : "";
+                Console.WriteLine($"Position {taskData.Position}: Task ID {task.Id}");
+                Console.WriteLine($"  Type: {task.TaskType}, Difficulty: {task.Difficulty}{topicInfo}");
+                Console.WriteLine($"  Statement: {task.Statement}");
+                if (!string.IsNullOrWhiteSpace(task.CorrectAnswer))
+                {
+                    var correctAnswerValue = ExtractAnswerValueFromJson(task.CorrectAnswer);
+                    if (!string.IsNullOrWhiteSpace(correctAnswerValue))
+                    {
+                        Console.WriteLine($"  Correct Answer: {correctAnswerValue}");
+                    }
+                }
+                if (!string.IsNullOrWhiteSpace(task.Explanation))
+                {
+                    Console.WriteLine($"  Explanation: {task.Explanation}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"Position {taskData.Position}: Task ID {taskData.TaskId} (details not available)");
+            }
+            
+            if (taskData != data.Tasks.OrderBy(t => t.Position).Last())
+            {
+                Console.WriteLine();
+            }
+        }
+        Console.WriteLine(new string('-', 100));
+    }
+
+    private async Task EditTaskAsync(TestCreationData data)
+    {
+        if (data.Tasks.Count == 0)
+        {
+            Console.WriteLine("No tasks to edit.");
+            return;
+        }
+
+        await ViewTasksAsync(data);
+        Console.Write("Enter task ID to edit: ");
+        if (!long.TryParse(Console.ReadLine(), out var taskId))
+        {
+            Console.WriteLine("Invalid task ID.");
+            return;
+        }
+
+        // Проверяем, что задание есть в тесте
+        if (!data.Tasks.Any(t => t.TaskId == taskId))
+        {
+            Console.WriteLine($"Task {taskId} is not in this test.");
+            return;
+        }
+
+        // Загружаем данные задания
+        Console.WriteLine("Loading task data...");
+        var tasksResult = await _apiClient.GetTasksBySubjectAsync(data.SubjectId, taskId.ToString(), _cts.Token);
+        
+        if (!tasksResult.Success || tasksResult.Value == null)
+        {
+            Console.WriteLine($"Failed to load task: {tasksResult.Error ?? "Unknown error"}");
+            return;
+        }
+
+        var task = tasksResult.Value.FirstOrDefault(t => t.Id == taskId);
+        if (task == null)
+        {
+            Console.WriteLine($"Task {taskId} not found.");
+            return;
+        }
+
+        // Создаем объект для редактирования на основе существующего задания
+        var taskData = new TaskCreationData
+        {
+            SubjectId = task.SubjectId,
+            TopicId = task.TopicId,
+            TopicName = task.TopicName,
+            TaskType = task.TaskType,
+            Difficulty = task.Difficulty,
+            Statement = task.Statement,
+            CorrectAnswer = ExtractAnswerValueFromJson(task.CorrectAnswer),
+            Explanation = task.Explanation,
+            IsActive = true // По умолчанию активное
+        };
+
+        while (!_cts.IsCancellationRequested)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"Current task configuration (ID: {taskId}):");
+            PrintTaskConfiguration(taskData);
+            Console.WriteLine();
+            Console.WriteLine("Options:");
+            Console.WriteLine("1) Set topic");
+            Console.WriteLine("2) Set task type");
+            Console.WriteLine("3) Set difficulty");
+            Console.WriteLine("4) Set statement");
+            Console.WriteLine("5) Set correct answer");
+            Console.WriteLine("6) Set explanation");
+            Console.WriteLine("7) Save changes");
+            Console.WriteLine("0) Cancel");
+            Console.Write("Select option: ");
+
+            var choice = Console.ReadLine();
+            Console.WriteLine();
+
+            switch (choice)
+            {
+                case "1":
+                    await SetTopicAsync(taskData);
+                    break;
+                case "2":
+                    SetTaskType(taskData);
+                    break;
+                case "3":
+                    SetDifficulty(taskData);
+                    break;
+                case "4":
+                    SetStatement(taskData);
+                    break;
+                case "5":
+                    SetCorrectAnswer(taskData);
+                    break;
+                case "6":
+                    SetExplanation(taskData);
+                    break;
+                case "7":
+                    if (await TryUpdateTaskAsync(taskId, taskData))
+                    {
+                        return; // Вернуться в меню редактирования теста после успешного обновления
+                    }
+                    break;
+                case "0":
+                    return;
+                default:
+                    Console.WriteLine("Invalid option.");
+                    break;
+            }
+        }
+    }
+
+    private string? ExtractAnswerValueFromJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                return document.RootElement.GetString();
+            }
+            if (document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                document.RootElement.TryGetProperty("value", out var property))
+            {
+                return property.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? property.GetString()
+                    : property.GetRawText().Trim('"');
+            }
+        }
+        catch
+        {
+            // Если не удалось распарсить, возвращаем как есть
+        }
+
+        return json;
+    }
+
+    private async Task<bool> TryUpdateTaskAsync(long taskId, TaskCreationData taskData)
+    {
+        // Валидация
+        var errors = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(taskData.TaskType))
+        {
+            errors.Add("Task type is required.");
+        }
+
+        if (!taskData.Difficulty.HasValue || taskData.Difficulty.Value < 1 || taskData.Difficulty.Value > 5)
+        {
+            errors.Add("Difficulty must be between 1 and 5.");
+        }
+
+        if (string.IsNullOrWhiteSpace(taskData.Statement))
+        {
+            errors.Add("Statement is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(taskData.CorrectAnswer))
+        {
+            errors.Add("Correct answer is required.");
+        }
+
+        if (errors.Count > 0)
+        {
+            Console.WriteLine("Cannot update task. Errors:");
+            foreach (var error in errors)
+            {
+                Console.WriteLine($"  - {error}");
+            }
+            Console.WriteLine();
+            return false;
+        }
+
+        // Формируем правильный ответ в JSON формате
+        var correctAnswerJson = System.Text.Json.JsonSerializer.Serialize(taskData.CorrectAnswer);
+
+        var request = new ApiClient.UpdateTaskRequest(
+            TopicId: taskData.TopicId,
+            TaskType: taskData.TaskType,
+            Difficulty: taskData.Difficulty,
+            Statement: taskData.Statement,
+            CorrectAnswer: correctAnswerJson,
+            Explanation: taskData.Explanation,
+            IsActive: taskData.IsActive
+        );
+
+        Console.WriteLine("Updating task...");
+        var result = await _apiClient.UpdateTaskAsync(taskId, request, _cts.Token);
+
+        if (result.Success)
+        {
+            Console.WriteLine($"Task {taskId} updated successfully.");
+            Console.WriteLine();
+            return true;
+        }
+
+        Console.WriteLine($"Failed to update task: {FormatError(result.Error)}");
+        Console.WriteLine();
+        return false;
     }
 
     private async Task<bool> TryCreateTestAsync(TestCreationData data)
@@ -1452,7 +1710,8 @@ public sealed class TeacherWebClientApp : IDisposable
             Console.WriteLine("7) Add task");
             Console.WriteLine("8) Remove task");
             Console.WriteLine("9) View tasks");
-            Console.WriteLine("10) Save changes");
+            Console.WriteLine("10) Edit task");
+            Console.WriteLine("11) Save changes");
             Console.WriteLine("0) Cancel");
             Console.Write("Select option: ");
 
@@ -1483,12 +1742,15 @@ public sealed class TeacherWebClientApp : IDisposable
                     await AddTaskAsync(testData);
                     break;
                 case "8":
-                    RemoveTask(testData);
+                    await RemoveTaskAsync(testData);
                     break;
                 case "9":
-                    ViewTasks(testData);
+                    await ViewTasksAsync(testData);
                     break;
                 case "10":
+                    await EditTaskAsync(testData);
+                    break;
+                case "11":
                     if (await TryUpdateTestAsync(testId, testData))
                     {
                         return; // Вернуться в меню управления тестами после успешного обновления
@@ -1585,17 +1847,15 @@ public sealed class TeacherWebClientApp : IDisposable
         return true;
     }
 
-    private async Task ManageStudentBindingsAsync()
+    private async Task ManageInvitationCodesAsync()
     {
         while (!_cts.IsCancellationRequested)
         {
-            Console.WriteLine("=== Manage Student Bindings ===");
+            Console.WriteLine("=== Manage Invitation Codes ===");
             Console.WriteLine("1) Create invitation code");
             Console.WriteLine("2) View invitation codes");
             Console.WriteLine("3) Revoke invitation code");
             Console.WriteLine("4) Delete invitation code");
-            Console.WriteLine("5) View my students");
-            Console.WriteLine("6) Remove student");
             Console.WriteLine("0) Back");
             Console.Write("Select option: ");
 
@@ -1616,11 +1876,43 @@ public sealed class TeacherWebClientApp : IDisposable
                 case "4":
                     await DeleteInvitationCodeAsync();
                     break;
-                case "5":
+                case "0":
+                    return;
+                default:
+                    Console.WriteLine("Unknown option.");
+                    break;
+            }
+        }
+    }
+
+    private async Task ManageStudentsAsync()
+    {
+        while (!_cts.IsCancellationRequested)
+        {
+            Console.WriteLine("=== Manage Students ===");
+            Console.WriteLine("1) View my students");
+            Console.WriteLine("2) Remove student");
+            Console.WriteLine("3) List student attempts");
+            Console.WriteLine("4) List student statistics");
+            Console.WriteLine("0) Back");
+            Console.Write("Select option: ");
+
+            var choice = Console.ReadLine();
+            Console.WriteLine();
+
+            switch (choice)
+            {
+                case "1":
                     await ViewMyStudentsAsync();
                     break;
-                case "6":
+                case "2":
                     await RemoveStudentAsync();
+                    break;
+                case "3":
+                    await ListStudentAttemptsAsync();
+                    break;
+                case "4":
+                    await ListStudentStatisticsAsync();
                     break;
                 case "0":
                     return;
@@ -1943,6 +2235,388 @@ public sealed class TeacherWebClientApp : IDisposable
 
         Console.WriteLine("Student removed successfully. Access to all your tests has been revoked.");
         Console.WriteLine();
+    }
+
+    private async Task ListStudentAttemptsAsync()
+    {
+        Console.WriteLine("=== List Student Attempts ===");
+        
+        var studentsResult = await _apiClient.GetMyStudentsAsync(_cts.Token);
+        if (!studentsResult.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(studentsResult.Error)}");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        var students = studentsResult.Value!;
+        if (students.Count == 0)
+        {
+            Console.WriteLine("No students found.");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        Console.WriteLine("Select student:");
+        var studentList = students.ToList();
+        for (int i = 0; i < studentList.Count; i++)
+        {
+            var student = studentList[i];
+            Console.WriteLine($"{i + 1}) {student.UserName} (ID: {student.Id}, Email: {student.Email})");
+        }
+        Console.Write("Enter student number: ");
+        var choice = Console.ReadLine();
+        Console.WriteLine();
+
+        if (!int.TryParse(choice, out var studentIndex) || studentIndex < 1 || studentIndex > studentList.Count)
+        {
+            Console.WriteLine("Invalid selection.");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        var selectedStudent = studentList[studentIndex - 1];
+
+        Console.WriteLine("Filter by status:");
+        Console.WriteLine("1) All attempts");
+        Console.WriteLine("2) In progress");
+        Console.WriteLine("3) Completed");
+        Console.WriteLine("4) Aborted");
+        Console.Write("Choose filter (1-4): ");
+        var filterChoice = Console.ReadLine();
+        Console.WriteLine();
+
+        string? statusFilter = null;
+        switch (filterChoice)
+        {
+            case "1": statusFilter = null; break;
+            case "2": statusFilter = "in_progress"; break;
+            case "3": statusFilter = "completed"; break;
+            case "4": statusFilter = "aborted"; break;
+            default: Console.WriteLine("Invalid filter. Showing all attempts."); break;
+        }
+
+        var result = await _apiClient.GetStudentAttemptsAsync(selectedStudent.Id, statusFilter, 100, 0, _cts.Token);
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(result.Error)}");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        var attempts = result.Value!;
+        if (attempts.Count == 0)
+        {
+            Console.WriteLine($"No attempts found for student {selectedStudent.UserName}.");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        Console.WriteLine($"Found {attempts.Count} attempt(s) for {selectedStudent.UserName}:");
+        var attemptList = attempts.ToList();
+        for (int i = 0; i < attemptList.Count; i++)
+        {
+            var attempt = attemptList[i];
+            var elapsed = attempt.FinishedAt.HasValue 
+                ? (attempt.FinishedAt.Value - attempt.StartedAt).TotalMinutes 
+                : (DateTimeOffset.UtcNow - attempt.StartedAt).TotalMinutes;
+            var statusDisplay = attempt.Status switch
+            {
+                "in_progress" => "In Progress",
+                "completed" => "Completed",
+                "aborted" => "Aborted",
+                _ => attempt.Status
+            };
+            
+            Console.WriteLine($"{i + 1}) Attempt #{attempt.Id}: {attempt.TestTitle} ({attempt.SubjectName})");
+            Console.WriteLine($"   Status: {statusDisplay}");
+            Console.WriteLine($"   Started: {attempt.StartedAt:yyyy-MM-dd HH:mm:ss}");
+            if (attempt.FinishedAt.HasValue)
+            {
+                Console.WriteLine($"   Finished: {attempt.FinishedAt.Value:yyyy-MM-dd HH:mm:ss}");
+            }
+            Console.WriteLine($"   Duration: {elapsed:F1} minutes");
+            if (attempt.RawScore.HasValue && (attempt.Status == "completed" || attempt.Status == "aborted"))
+            {
+                Console.WriteLine($"   Score: {attempt.RawScore.Value:F1}");
+            }
+        }
+        
+        Console.WriteLine();
+        Console.WriteLine("Options:");
+        Console.WriteLine("1) View attempt details");
+        Console.WriteLine("0) Back");
+        Console.Write("Choose option: ");
+        var detailChoice = Console.ReadLine();
+        Console.WriteLine();
+
+        if (detailChoice == "1" && attemptList.Count > 0)
+        {
+            Console.Write("Enter attempt number to view details: ");
+            if (int.TryParse(Console.ReadLine(), out var attemptNumber) && attemptNumber >= 1 && attemptNumber <= attemptList.Count)
+            {
+                var selectedAttempt = attemptList[attemptNumber - 1];
+                await ShowStudentAttemptDetailsAsync(selectedStudent.Id, selectedAttempt.Id);
+            }
+            else
+            {
+                Console.WriteLine("Invalid attempt number.");
+                Console.WriteLine("Press Enter to continue...");
+                Console.ReadLine();
+            }
+        }
+    }
+
+    private async Task ShowStudentAttemptDetailsAsync(long studentId, long attemptId)
+    {
+        Console.WriteLine("=== Attempt Details ===");
+        Console.WriteLine("Loading attempt details...");
+        Console.WriteLine();
+
+        var result = await _apiClient.GetStudentAttemptDetailsWithTasksAsync(studentId, attemptId, _cts.Token);
+        if (!result.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(result.Error)}");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        var details = result.Value!;
+        
+        Console.WriteLine($"Attempt #{details.Id}: {details.TestTitle}");
+        Console.WriteLine($"Status: {details.Status}");
+        Console.WriteLine($"Started: {details.StartedAt:yyyy-MM-dd HH:mm:ss}");
+        if (details.FinishedAt.HasValue)
+        {
+            Console.WriteLine($"Finished: {details.FinishedAt.Value:yyyy-MM-dd HH:mm:ss}");
+        }
+        if (details.DurationSec.HasValue)
+        {
+            var minutes = details.DurationSec.Value / 60;
+            var seconds = details.DurationSec.Value % 60;
+            Console.WriteLine($"Duration: {minutes} minute(s) {seconds} second(s)");
+        }
+        if (details.RawScore.HasValue)
+        {
+            Console.WriteLine($"Score: {details.RawScore.Value:F1}");
+        }
+        Console.WriteLine();
+
+        var tasks = details.Tasks.OrderBy(t => t.Position).ToList();
+        Console.WriteLine($"Tasks ({tasks.Count}):");
+        Console.WriteLine();
+
+        for (int i = 0; i < tasks.Count; i++)
+        {
+            var task = tasks[i];
+            Console.WriteLine($"--- Task {i + 1}/{tasks.Count} ---");
+            Console.WriteLine($"Type: {task.TaskType}, Difficulty: {task.Difficulty}");
+            Console.WriteLine($"Statement: {task.Statement}");
+            Console.WriteLine();
+
+            if (task.GivenAnswer != null)
+            {
+                var answerStatus = task.IsCorrect == true ? "Correct" : task.IsCorrect == false ? "Incorrect" : "Unknown";
+                Console.WriteLine($"Your answer: {task.GivenAnswer} ({answerStatus})");
+            }
+            else
+            {
+                Console.WriteLine("Your answer: Not answered");
+            }
+
+            if (task.CorrectAnswer != null)
+            {
+                Console.WriteLine($"Correct answer: {task.CorrectAnswer}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(task.Explanation))
+            {
+                Console.WriteLine($"Explanation: {task.Explanation}");
+            }
+
+            if (task.TimeSpentSec.HasValue)
+            {
+                var taskMinutes = task.TimeSpentSec.Value / 60;
+                var taskSeconds = task.TimeSpentSec.Value % 60;
+                Console.WriteLine($"Time spent: {taskMinutes} minute(s) {taskSeconds} second(s)");
+            }
+
+            if (i < tasks.Count - 1)
+            {
+                Console.WriteLine();
+            }
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Press Enter to continue...");
+        Console.ReadLine();
+    }
+
+    private async Task ListStudentStatisticsAsync()
+    {
+        Console.WriteLine("=== List Student Statistics ===");
+        
+        var studentsResult = await _apiClient.GetMyStudentsAsync(_cts.Token);
+        if (!studentsResult.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(studentsResult.Error)}");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        var students = studentsResult.Value!;
+        if (students.Count == 0)
+        {
+            Console.WriteLine("No students found.");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        Console.WriteLine("Select student:");
+        var studentList = students.ToList();
+        for (int i = 0; i < studentList.Count; i++)
+        {
+            var student = studentList[i];
+            Console.WriteLine($"{i + 1}) {student.UserName} (ID: {student.Id}, Email: {student.Email})");
+        }
+        Console.Write("Enter student number: ");
+        var choice = Console.ReadLine();
+        Console.WriteLine();
+
+        if (!int.TryParse(choice, out var studentIndex) || studentIndex < 1 || studentIndex > studentList.Count)
+        {
+            Console.WriteLine("Invalid selection.");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        var selectedStudent = studentList[studentIndex - 1];
+
+        var subjectsResult = await _apiClient.GetStudentStatisticsSubjectsAsync(selectedStudent.Id, _cts.Token);
+        if (!subjectsResult.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(subjectsResult.Error)}");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        var subjects = subjectsResult.Value!;
+        if (subjects.Count == 0)
+        {
+            Console.WriteLine($"No subjects found for student {selectedStudent.UserName}.");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        Console.WriteLine($"Select subject for {selectedStudent.UserName}:");
+        var subjectList = subjects.ToList();
+        for (int i = 0; i < subjectList.Count; i++)
+        {
+            Console.WriteLine($"{i + 1}) {subjectList[i].SubjectName} (ID: {subjectList[i].Id})");
+        }
+        Console.Write("Enter subject number: ");
+        var subjectChoice = Console.ReadLine();
+        Console.WriteLine();
+
+        if (!int.TryParse(subjectChoice, out var subjectIndex) || subjectIndex < 1 || subjectIndex > subjectList.Count)
+        {
+            Console.WriteLine("Invalid selection.");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        var selectedSubject = subjectList[subjectIndex - 1];
+
+        var statsResult = await _apiClient.GetStudentSubjectStatisticsAsync(selectedStudent.Id, selectedSubject.Id, _cts.Token);
+        if (!statsResult.Success)
+        {
+            Console.WriteLine($"Error: {FormatError(statsResult.Error)}");
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        var stats = statsResult.Value!;
+
+        Console.WriteLine($"=== Statistics for {selectedStudent.UserName} - {selectedSubject.SubjectName} ===");
+        Console.WriteLine();
+
+        // Общий процент успешно решенных заданий по предмету
+        if (stats.OverallAccuracyPercentage.HasValue)
+        {
+            Console.WriteLine($"Overall accuracy: {stats.OverallAccuracyPercentage.Value:F1}%");
+            Console.WriteLine($"Total attempts: {stats.OverallAttemptsTotal}");
+            Console.WriteLine($"Correct answers: {stats.OverallCorrectTotal}");
+        }
+        else
+        {
+            Console.WriteLine("No attempts yet for this subject.");
+        }
+        Console.WriteLine();
+
+        // Топ 3 темы с наибольшим количеством ошибок
+        if (stats.Top3ErrorTopics.Count > 0)
+        {
+            Console.WriteLine("Top 3 topics with most errors:");
+            for (int i = 0; i < stats.Top3ErrorTopics.Count; i++)
+            {
+                var topic = stats.Top3ErrorTopics.ElementAt(i);
+                Console.WriteLine($"  - {topic.TopicName}");
+                Console.WriteLine($"    Errors: {topic.ErrorsCount}");
+                Console.WriteLine($"    Accuracy: {(topic.AccuracyPercentage.HasValue ? $"{topic.AccuracyPercentage.Value:F1}%" : "N/A")}");
+                Console.WriteLine($"    Completed tasks: {topic.AttemptsTotal}");
+                if (i < stats.Top3ErrorTopics.Count - 1)
+                {
+                    Console.WriteLine();
+                }
+            }
+            Console.WriteLine();
+        }
+
+        // Остальные темы, отсортированные по возрастанию процента успешности
+        if (stats.OtherTopics.Count > 0)
+        {
+            Console.WriteLine("Other topics (sorted by accuracy, lowest first):");
+            for (int i = 0; i < stats.OtherTopics.Count; i++)
+            {
+                var topic = stats.OtherTopics.ElementAt(i);
+                Console.WriteLine($"  - {topic.TopicName}");
+                Console.WriteLine($"    Accuracy: {(topic.AccuracyPercentage.HasValue ? $"{topic.AccuracyPercentage.Value:F1}%" : "N/A")}");
+                Console.WriteLine($"    Errors: {topic.ErrorsCount}");
+                Console.WriteLine($"    Completed tasks: {topic.AttemptsTotal}");
+                if (i < stats.OtherTopics.Count - 1)
+                {
+                    Console.WriteLine();
+                }
+            }
+            Console.WriteLine();
+        }
+
+        // Темы, по которым еще не решал тесты
+        if (stats.UnattemptedTopics.Count > 0)
+        {
+            Console.WriteLine("Topics not yet attempted:");
+            foreach (var topic in stats.UnattemptedTopics)
+            {
+                Console.WriteLine($"  - {topic.TopicName}");
+            }
+            Console.WriteLine();
+        }
+
+        Console.WriteLine("Press Enter to continue...");
+        Console.ReadLine();
     }
 }
 

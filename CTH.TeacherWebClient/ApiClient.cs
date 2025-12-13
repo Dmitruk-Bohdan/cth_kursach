@@ -221,6 +221,24 @@ public sealed class ApiClient : IDisposable
         return Result<CreatedTaskResponse>.Fail(error);
     }
 
+    public async Task<Result<TaskListItem>> UpdateTaskAsync(long taskId, UpdateTaskRequest request, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"/teacher/tests/tasks/{taskId}", request, _jsonOptions, cancellationToken);
+        
+        if (response.IsSuccessStatusCode)
+        {
+            var taskDetails = await response.Content.ReadFromJsonAsync<TaskListItem>(_jsonOptions, cancellationToken);
+            if (taskDetails != null)
+            {
+                return Result<TaskListItem>.Ok(taskDetails);
+            }
+            return Result<TaskListItem>.Fail("Failed to parse response.");
+        }
+
+        var error = await response.Content.ReadAsStringAsync(cancellationToken);
+        return Result<TaskListItem>.Fail(error);
+    }
+
     public async Task<Result<CreatedTestResponse>> CreateTestAsync(CreateTestRequest request, CancellationToken cancellationToken)
     {
         var response = await _httpClient.PostAsJsonAsync("/teacher/tests", request, _jsonOptions, cancellationToken);
@@ -506,6 +524,148 @@ public sealed class ApiClient : IDisposable
         return Result.Fail(error);
     }
 
+    public async Task<Result<IReadOnlyCollection<AttemptListItem>>> GetStudentAttemptsAsync(
+        long studentId,
+        string? status,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken)
+    {
+        var uri = $"/teacher/students/{studentId}/attempts?limit={limit}&offset={offset}";
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            uri += $"&status={Uri.EscapeDataString(status)}";
+        }
+        var response = await _httpClient.GetAsync(uri, cancellationToken);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync(cancellationToken);
+            return Result<IReadOnlyCollection<AttemptListItem>>.Fail(error);
+        }
+
+        try
+        {
+            var responseModel = await response.Content.ReadFromJsonAsync<ResponseModel<List<AttemptListItem>>>(_jsonOptions, cancellationToken);
+            if (responseModel != null && responseModel.Success && responseModel.Result != null)
+            {
+                return Result<IReadOnlyCollection<AttemptListItem>>.Ok(responseModel.Result);
+            }
+        }
+        catch
+        {
+        }
+
+        var attempts = await response.Content.ReadFromJsonAsync<List<AttemptListItem>>(_jsonOptions, cancellationToken);
+        if (attempts == null)
+        {
+            return Result<IReadOnlyCollection<AttemptListItem>>.Fail("Failed to parse response.");
+        }
+
+        return Result<IReadOnlyCollection<AttemptListItem>>.Ok(attempts);
+    }
+
+    public async Task<Result<AttemptDetailsWithTasks>> GetStudentAttemptDetailsWithTasksAsync(
+        long studentId,
+        long attemptId,
+        CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.GetAsync($"/teacher/students/{studentId}/attempts/{attemptId}/details", cancellationToken);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync(cancellationToken);
+            return Result<AttemptDetailsWithTasks>.Fail(error);
+        }
+
+        try
+        {
+            var responseModel = await response.Content.ReadFromJsonAsync<ResponseModel<AttemptDetailsWithTasks>>(_jsonOptions, cancellationToken);
+            if (responseModel != null && responseModel.Success && responseModel.Result != null)
+            {
+                return Result<AttemptDetailsWithTasks>.Ok(responseModel.Result);
+            }
+        }
+        catch
+        {
+        }
+
+        var details = await response.Content.ReadFromJsonAsync<AttemptDetailsWithTasks>(_jsonOptions, cancellationToken);
+        if (details == null)
+        {
+            return Result<AttemptDetailsWithTasks>.Fail("Failed to parse response.");
+        }
+
+        return Result<AttemptDetailsWithTasks>.Ok(details);
+    }
+
+    public async Task<Result<IReadOnlyCollection<SubjectListItem>>> GetStudentStatisticsSubjectsAsync(
+        long studentId,
+        CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.GetAsync($"/teacher/students/{studentId}/statistics/subjects", cancellationToken);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync(cancellationToken);
+            return Result<IReadOnlyCollection<SubjectListItem>>.Fail(error);
+        }
+
+        try
+        {
+            var responseModel = await response.Content.ReadFromJsonAsync<ResponseModel<List<SubjectListItem>>>(_jsonOptions, cancellationToken);
+            if (responseModel != null && responseModel.Success && responseModel.Result != null)
+            {
+                return Result<IReadOnlyCollection<SubjectListItem>>.Ok(responseModel.Result);
+            }
+        }
+        catch
+        {
+        }
+
+        var subjects = await response.Content.ReadFromJsonAsync<List<SubjectListItem>>(_jsonOptions, cancellationToken);
+        if (subjects == null)
+        {
+            return Result<IReadOnlyCollection<SubjectListItem>>.Fail("Failed to parse response.");
+        }
+
+        return Result<IReadOnlyCollection<SubjectListItem>>.Ok(subjects);
+    }
+
+    public async Task<Result<SubjectStatisticsDto>> GetStudentSubjectStatisticsAsync(
+        long studentId,
+        long subjectId,
+        CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.GetAsync($"/teacher/students/{studentId}/statistics/subject/{subjectId}", cancellationToken);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync(cancellationToken);
+            return Result<SubjectStatisticsDto>.Fail(error);
+        }
+
+        try
+        {
+            var responseModel = await response.Content.ReadFromJsonAsync<ResponseModel<SubjectStatisticsDto>>(_jsonOptions, cancellationToken);
+            if (responseModel != null && responseModel.Success && responseModel.Result != null)
+            {
+                return Result<SubjectStatisticsDto>.Ok(responseModel.Result);
+            }
+        }
+        catch
+        {
+        }
+
+        var stats = await response.Content.ReadFromJsonAsync<SubjectStatisticsDto>(_jsonOptions, cancellationToken);
+        if (stats == null)
+        {
+            return Result<SubjectStatisticsDto>.Fail("Failed to parse response.");
+        }
+
+        return Result<SubjectStatisticsDto>.Ok(stats);
+    }
+
     private async Task<Result<T>> ReadResponseModelAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode)
@@ -552,7 +712,8 @@ public sealed class ApiClient : IDisposable
         string TaskType,
         short Difficulty,
         string Statement,
-        string? Explanation);
+        string? Explanation,
+        string? CorrectAnswer);
 
     public sealed record TopicListItem(long Id, long SubjectId, string TopicName, string? TopicCode);
 
@@ -578,6 +739,15 @@ public sealed class ApiClient : IDisposable
         bool IsActive);
 
     public sealed record CreatedTaskResponse(long Id, string TaskType, short Difficulty, string Statement);
+
+    public sealed record UpdateTaskRequest(
+        long? TopicId,
+        string? TaskType,
+        short? Difficulty,
+        string? Statement,
+        string? CorrectAnswer,
+        string? Explanation,
+        bool? IsActive);
 
     // Класс для десериализации обернутого ответа API
     private sealed class ResponseModel<T>
@@ -670,6 +840,62 @@ public sealed class ApiClient : IDisposable
         public string Statement { get; set; } = string.Empty;
         public short Difficulty { get; set; }
         public string? Explanation { get; set; }
+    }
+
+    public sealed record AttemptListItem(
+        long Id,
+        long TestId,
+        string TestTitle,
+        long SubjectId,
+        string SubjectName,
+        DateTimeOffset StartedAt,
+        DateTimeOffset? FinishedAt,
+        string Status,
+        decimal? RawScore);
+
+    public sealed record AttemptDetailsWithTasks(
+        long Id,
+        long TestId,
+        string TestTitle,
+        string Status,
+        DateTimeOffset StartedAt,
+        DateTimeOffset? FinishedAt,
+        decimal? RawScore,
+        decimal? ScaledScore,
+        int? DurationSec,
+        IReadOnlyCollection<AttemptTaskDetails> Tasks);
+
+    public sealed record AttemptTaskDetails(
+        long TaskId,
+        int Position,
+        string TaskType,
+        string Statement,
+        short Difficulty,
+        string? Explanation,
+        string? CorrectAnswer,
+        string? GivenAnswer,
+        bool? IsCorrect,
+        int? TimeSpentSec);
+
+    public sealed class SubjectStatisticsDto
+    {
+        public decimal? OverallAccuracyPercentage { get; set; }
+        public int OverallAttemptsTotal { get; set; }
+        public int OverallCorrectTotal { get; set; }
+        public IReadOnlyCollection<TopicStatisticsDto> Top3ErrorTopics { get; set; } = Array.Empty<TopicStatisticsDto>();
+        public IReadOnlyCollection<TopicStatisticsDto> OtherTopics { get; set; } = Array.Empty<TopicStatisticsDto>();
+        public IReadOnlyCollection<TopicStatisticsDto> UnattemptedTopics { get; set; } = Array.Empty<TopicStatisticsDto>();
+    }
+
+    public sealed class TopicStatisticsDto
+    {
+        public long? TopicId { get; set; }
+        public string TopicName { get; set; } = string.Empty;
+        public int AttemptsTotal { get; set; }
+        public int CorrectTotal { get; set; }
+        public int ErrorsCount { get; set; }
+        public decimal? AccuracyPercentage { get; set; }
+        public DateTimeOffset? LastAttemptAt { get; set; }
     }
 }
 

@@ -180,6 +180,12 @@ public sealed class ApiClient : IDisposable
         return await ReadResponseModelAsync<AttemptDetails>(response, cancellationToken);
     }
 
+    public async Task<Result<AttemptDetailsWithTasks>> GetAttemptDetailsWithTasksAsync(long attemptId, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.GetAsync($"/student/attempts/{attemptId}/details", cancellationToken);
+        return await ReadResponseModelAsync<AttemptDetailsWithTasks>(response, cancellationToken);
+    }
+
     public async Task<Result<IReadOnlyCollection<AttemptListItem>>> GetInProgressAttemptsAsync(CancellationToken cancellationToken)
     {
         var response = await _httpClient.GetAsync("/student/attempts/in-progress", cancellationToken);
@@ -345,6 +351,30 @@ public sealed class ApiClient : IDisposable
 
     public sealed record AttemptAnswer(long TaskId, string GivenAnswer, bool IsCorrect, int? TimeSpentSec);
 
+    public sealed record AttemptDetailsWithTasks(
+        long Id,
+        long TestId,
+        string TestTitle,
+        string Status,
+        DateTimeOffset StartedAt,
+        DateTimeOffset? FinishedAt,
+        decimal? RawScore,
+        decimal? ScaledScore,
+        int? DurationSec,
+        IReadOnlyCollection<AttemptTaskDetails> Tasks);
+
+    public sealed record AttemptTaskDetails(
+        long TaskId,
+        int Position,
+        string TaskType,
+        string Statement,
+        short Difficulty,
+        string? Explanation,
+        string? CorrectAnswer,
+        string? GivenAnswer,
+        bool? IsCorrect,
+        int? TimeSpentSec);
+
     public sealed record AttemptListItem(long Id, long TestId, string TestTitle, long SubjectId, string SubjectName, DateTimeOffset StartedAt, DateTimeOffset? FinishedAt, string Status, decimal? RawScore);
 
     public sealed record SubjectListItem(long Id, string SubjectCode, string SubjectName);
@@ -395,9 +425,41 @@ public sealed class ApiClient : IDisposable
         return await ToResult(response, cancellationToken);
     }
 
+    public async Task<Result<TestDetails>> GenerateMixedTestAsync(GenerateMixedTestRequest request, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/student/tests/mixed/generate", request, _jsonOptions, cancellationToken);
+        return await ReadResponseModelAsync<TestDetails>(response, cancellationToken);
+    }
+
+    public async Task<Result<IReadOnlyCollection<TestListItem>>> GetMyMixedTestsAsync(long subjectId, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.GetAsync($"/student/tests/mixed?subjectId={subjectId}", cancellationToken);
+        var wrapped = await ReadResponseModelAsync<List<TestListItem>>(response, cancellationToken);
+        return wrapped.Success
+            ? Result<IReadOnlyCollection<TestListItem>>.Ok(wrapped.Value!)
+            : Result<IReadOnlyCollection<TestListItem>>.Fail(wrapped.Error ?? "Не удалось получить список смешанных тестов.");
+    }
+
+    public async Task<Result> DeleteMixedTestAsync(long testId, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.DeleteAsync($"/student/tests/mixed/{testId}", cancellationToken);
+        return await ToResult(response, cancellationToken);
+    }
+
     public sealed record JoinTeacherRequest(string InvitationCode);
 
     public sealed record TeacherItem(long Id, string UserName, string Email, DateTimeOffset? EstablishedAt);
+
+    public sealed record GenerateMixedTestRequest(
+        long SubjectId,
+        int? TimeLimitSec,
+        string? Title,
+        IReadOnlyCollection<TopicSelection> Topics);
+
+    public sealed record TopicSelection(
+        long TopicId,
+        int TaskCount,
+        short DesiredDifficulty);
 
     public sealed record Recommendations(
         IReadOnlyCollection<TopicRecommendation> CriticalTopics,

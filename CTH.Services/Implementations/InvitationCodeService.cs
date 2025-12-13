@@ -1,7 +1,9 @@
 using CTH.Database.Entities.Public;
 using CTH.Database.Repositories.Interfaces;
 using CTH.Services.Interfaces;
+using CTH.Services.Models.Dto.Attempts;
 using CTH.Services.Models.Dto.Invitations;
+using CTH.Services.Models.Dto.Statistics;
 using CTH.Services.Models.Dto.Students;
 using PropTechPeople.Services.Models.ResultApiModels;
 using System.Net;
@@ -14,15 +16,21 @@ public class InvitationCodeService : IInvitationCodeService
 {
     private readonly IInvitationCodeRepository _invitationCodeRepository;
     private readonly ITeacherStudentRepository _teacherStudentRepository;
+    private readonly IStudentAttemptService _studentAttemptService;
+    private readonly IStudentStatisticsService _studentStatisticsService;
     private const string CodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Исключаем похожие символы (0, O, I, 1)
     private const int CodeLength = 32; // XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX = 32 символа
 
     public InvitationCodeService(
         IInvitationCodeRepository invitationCodeRepository,
-        ITeacherStudentRepository teacherStudentRepository)
+        ITeacherStudentRepository teacherStudentRepository,
+        IStudentAttemptService studentAttemptService,
+        IStudentStatisticsService studentStatisticsService)
     {
         _invitationCodeRepository = invitationCodeRepository;
         _teacherStudentRepository = teacherStudentRepository;
+        _studentAttemptService = studentAttemptService;
+        _studentStatisticsService = studentStatisticsService;
     }
 
     public async Task<HttpOperationResult<InvitationCodeDto>> CreateInvitationCodeAsync(long teacherId, CreateInvitationCodeRequestDto request, CancellationToken cancellationToken)
@@ -224,6 +232,91 @@ public class InvitationCodeService : IInvitationCodeService
         await _teacherStudentRepository.DeleteAsync(teacherId, studentId, cancellationToken);
 
         return new HttpOperationResult(HttpStatusCode.NoContent);
+    }
+
+    public async Task<HttpOperationResult<IReadOnlyCollection<AttemptListItemDto>>> GetStudentAttemptsAsync(
+        long teacherId,
+        long studentId,
+        string? status,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken)
+    {
+        // Проверяем, что студент связан с преподавателем
+        var relationship = await _teacherStudentRepository.GetByTeacherAndStudentAsync(teacherId, studentId, cancellationToken);
+        if (relationship == null)
+        {
+            return new HttpOperationResult<IReadOnlyCollection<AttemptListItemDto>>
+            {
+                Status = HttpStatusCode.NotFound,
+                Error = "Student is not connected to this teacher"
+            };
+        }
+
+        // Делегируем вызов сервису попыток
+        return await _studentAttemptService.GetAttemptsAsync(studentId, status, limit, offset, cancellationToken);
+    }
+
+    public async Task<HttpOperationResult<AttemptDetailsWithTasksDto>> GetStudentAttemptDetailsWithTasksAsync(
+        long teacherId,
+        long studentId,
+        long attemptId,
+        CancellationToken cancellationToken)
+    {
+        // Проверяем, что студент связан с преподавателем
+        var relationship = await _teacherStudentRepository.GetByTeacherAndStudentAsync(teacherId, studentId, cancellationToken);
+        if (relationship == null)
+        {
+            return new HttpOperationResult<AttemptDetailsWithTasksDto>
+            {
+                Status = HttpStatusCode.NotFound,
+                Error = "Student is not connected to this teacher"
+            };
+        }
+
+        // Делегируем вызов сервису попыток
+        return await _studentAttemptService.GetAttemptDetailsWithTasksAsync(studentId, attemptId, cancellationToken);
+    }
+
+    public async Task<HttpOperationResult<IReadOnlyCollection<SubjectDto>>> GetStudentStatisticsSubjectsAsync(
+        long teacherId,
+        long studentId,
+        CancellationToken cancellationToken)
+    {
+        // Проверяем, что студент связан с преподавателем
+        var relationship = await _teacherStudentRepository.GetByTeacherAndStudentAsync(teacherId, studentId, cancellationToken);
+        if (relationship == null)
+        {
+            return new HttpOperationResult<IReadOnlyCollection<SubjectDto>>
+            {
+                Status = HttpStatusCode.NotFound,
+                Error = "Student is not connected to this teacher"
+            };
+        }
+
+        // Делегируем вызов сервису статистики
+        return await _studentStatisticsService.GetAllSubjectsAsync(cancellationToken);
+    }
+
+    public async Task<HttpOperationResult<SubjectStatisticsDto>> GetStudentSubjectStatisticsAsync(
+        long teacherId,
+        long studentId,
+        long subjectId,
+        CancellationToken cancellationToken)
+    {
+        // Проверяем, что студент связан с преподавателем
+        var relationship = await _teacherStudentRepository.GetByTeacherAndStudentAsync(teacherId, studentId, cancellationToken);
+        if (relationship == null)
+        {
+            return new HttpOperationResult<SubjectStatisticsDto>
+            {
+                Status = HttpStatusCode.NotFound,
+                Error = "Student is not connected to this teacher"
+            };
+        }
+
+        // Делегируем вызов сервису статистики
+        return await _studentStatisticsService.GetSubjectStatisticsAsync(studentId, subjectId, cancellationToken);
     }
 }
 

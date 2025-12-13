@@ -32,6 +32,19 @@ public class StudentAttemptsController : ControllerBase
         return Ok(result.Result);
     }
 
+    [HttpGet("{attemptId:long}/details")]
+    public async Task<IActionResult> GetAttemptDetailsWithTasks(long attemptId, CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _studentAttemptService.GetAttemptDetailsWithTasksAsync(userId, attemptId, cancellationToken);
+        if (!result.IsSuccessful)
+        {
+            return result.ToActionResult();
+        }
+
+        return Ok(result.Result);
+    }
+
     [HttpPost("{attemptId:long}/answers")]
     public async Task<IActionResult> SubmitAnswer(long attemptId, [FromBody] SubmitAnswerRequestDto request, CancellationToken cancellationToken)
     {
