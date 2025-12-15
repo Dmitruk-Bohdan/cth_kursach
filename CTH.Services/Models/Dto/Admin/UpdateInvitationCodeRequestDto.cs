@@ -7,3 +7,4 @@ public sealed class UpdateInvitationCodeRequestDto
     public string? Status { get; set; }
 }
 
+

@@ -14,3 +14,4 @@ public sealed class InvitationCodeListItemDto
     public DateTime CreatedAt { get; set; }
 }
 
+
