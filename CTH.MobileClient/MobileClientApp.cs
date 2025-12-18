@@ -190,7 +190,7 @@ public sealed class MobileClientApp : IDisposable
         Console.WriteLine("Select filtering options:");
         Console.WriteLine();
 
-        // Выбор предмета
+        
         long? subjectId = null;
         Console.WriteLine("Filter by subject? (y/n): ");
         if (Console.ReadLine()?.Trim().ToLower() == "y")
@@ -212,19 +212,19 @@ public sealed class MobileClientApp : IDisposable
             }
         }
 
-        // Только от преподавателей
+        
         Console.Write("Show only tests from my teachers? (y/n): ");
         var onlyTeachers = Console.ReadLine()?.Trim().ToLower() == "y";
 
-        // Только государственные
+        
         Console.Write("Show only state archive tests? (y/n): ");
         var onlyStateArchive = Console.ReadLine()?.Trim().ToLower() == "y";
 
-        // Только с ограниченным числом попыток
+        
         Console.Write("Show only tests with limited attempts? (y/n): ");
         var onlyLimitedAttempts = Console.ReadLine()?.Trim().ToLower() == "y";
 
-        // Поиск по названию
+        
         Console.Write("Search by title (leave empty to skip): ");
         var title = Console.ReadLine()?.Trim();
         if (string.IsNullOrWhiteSpace(title))
@@ -232,7 +232,7 @@ public sealed class MobileClientApp : IDisposable
             title = null;
         }
 
-        // Фильтр по режиму теста
+        
         string? mode = null;
         Console.WriteLine("Filter by test mode? (y/n): ");
         if (Console.ReadLine()?.Trim().ToLower() == "y")
@@ -271,7 +271,7 @@ public sealed class MobileClientApp : IDisposable
             return;
         }
 
-        // Показываем активные фильтры
+        
         var activeFilters = new List<string>();
         if (subjectId.HasValue)
         {
@@ -389,7 +389,7 @@ public sealed class MobileClientApp : IDisposable
         var attempt = result.Value!;
         Console.WriteLine($"Attempt #{attempt.AttemptId} started at {attempt.StartedAt}. Status: {attempt.Status}");
         
-        // Загружаем существующие ответы, если попытка уже была начата ранее
+        
         await SyncAnswerStateAsync(attempt.AttemptId, testDetails.Tasks.Count);
         
         await WalkThroughAttemptAsync(attempt.AttemptId, testDetails);
@@ -397,7 +397,7 @@ public sealed class MobileClientApp : IDisposable
 
     private async Task ContinueAttemptAsync()
     {
-        // Получаем как in_progress, так и aborted попытки
+        
         var inProgressResult = await _apiClient.GetAttemptsAsync("in_progress", 100, 0, _cts.Token);
         var abortedResult = await _apiClient.GetAttemptsAsync("aborted", 100, 0, _cts.Token);
         
@@ -441,7 +441,7 @@ public sealed class MobileClientApp : IDisposable
         var selectedAttempt = attemptList[choice - 1];
         _answerCache.Clear();
         
-        // Если попытка aborted, сначала возобновляем её
+        
         if (selectedAttempt.Status == "aborted")
         {
             Console.WriteLine($"Resuming aborted attempt #{selectedAttempt.Id}...");
@@ -454,7 +454,7 @@ public sealed class MobileClientApp : IDisposable
             Console.WriteLine("Attempt resumed successfully.");
         }
         
-        // Загружаем детали теста
+        
         var testDetailsResult = await _apiClient.GetTestDetailsAsync(selectedAttempt.TestId, _cts.Token);
         if (!testDetailsResult.Success)
         {
@@ -465,7 +465,7 @@ public sealed class MobileClientApp : IDisposable
         var testDetails = testDetailsResult.Value!;
         Console.WriteLine($"Continuing attempt #{selectedAttempt.Id}...");
         
-        // Проверяем статус попытки - если она уже завершена, не можем продолжить
+        
         var attemptStatusResult = await _apiClient.GetAttemptAsync(selectedAttempt.Id, _cts.Token);
         if (attemptStatusResult.Success && attemptStatusResult.Value != null)
         {
@@ -476,7 +476,7 @@ public sealed class MobileClientApp : IDisposable
             }
         }
         
-        // Проверяем таймер, если он установлен
+        
         if (testDetails.TimeLimitSec.HasValue)
         {
             var elapsed = (DateTimeOffset.UtcNow - selectedAttempt.StartedAt).TotalSeconds;
@@ -485,7 +485,7 @@ public sealed class MobileClientApp : IDisposable
             if (remaining <= 0)
             {
                 Console.WriteLine($"Time limit expired. Attempt will be completed automatically.");
-                // Автоматически завершаем попытку
+                
                 var (_, finalCorrect) = await LoadAttemptSummaryAsync(selectedAttempt.Id, testDetails.Tasks.Count);
                 var completeRequest = new CompleteAttemptRequest((decimal?)finalCorrect, null, (int)elapsed);
                 var completeResult = await _apiClient.CompleteAttemptAsync(selectedAttempt.Id, completeRequest, _cts.Token);
@@ -498,7 +498,7 @@ public sealed class MobileClientApp : IDisposable
             Console.WriteLine($"Time remaining: {remaining / 60:F0} minutes {remaining % 60:F0} seconds");
         }
         
-        // Загружаем существующие ответы
+        
         await SyncAnswerStateAsync(selectedAttempt.Id, testDetails.Tasks.Count);
         
         await WalkThroughAttemptAsync(selectedAttempt.Id, testDetails);
@@ -520,7 +520,7 @@ public sealed class MobileClientApp : IDisposable
         switch (filterChoice)
         {
             case "1":
-                statusFilter = null; // Все
+                statusFilter = null; 
                 break;
             case "2":
                 statusFilter = "in_progress";
@@ -607,7 +607,7 @@ public sealed class MobileClientApp : IDisposable
 
     private async Task ViewStatisticsAsync()
     {
-        // Получаем список предметов
+        
         var subjectsResult = await _apiClient.GetAllSubjectsAsync(_cts.Token);
         if (!subjectsResult.Success)
         {
@@ -622,7 +622,7 @@ public sealed class MobileClientApp : IDisposable
             return;
         }
 
-        // Показываем список предметов для выбора
+        
         Console.WriteLine("=== Select Subject ===");
         for (int i = 0; i < subjects.Count; i++)
         {
@@ -656,7 +656,7 @@ public sealed class MobileClientApp : IDisposable
         Console.WriteLine($"=== Statistics for {subjectName} ===");
         Console.WriteLine();
 
-        // Общий процент успешно решенных заданий по предмету
+        
         if (stats.OverallAccuracyPercentage.HasValue)
         {
             Console.WriteLine($"Overall accuracy: {stats.OverallAccuracyPercentage.Value:F1}%");
@@ -669,7 +669,7 @@ public sealed class MobileClientApp : IDisposable
         }
         Console.WriteLine();
 
-        // Топ 3 темы с наибольшим количеством ошибок
+        
         if (stats.Top3ErrorTopics.Count > 0)
         {
             Console.WriteLine("Top 3 topics with most errors:");
@@ -688,7 +688,7 @@ public sealed class MobileClientApp : IDisposable
             Console.WriteLine();
         }
 
-        // Остальные темы, отсортированные по возрастанию процента успешности
+        
         if (stats.OtherTopics.Count > 0)
         {
             Console.WriteLine("Other topics (sorted by accuracy, lowest first):");
@@ -707,7 +707,7 @@ public sealed class MobileClientApp : IDisposable
             Console.WriteLine();
         }
 
-        // Темы, по которым еще не решал тесты
+        
         if (stats.UnattemptedTopics.Count > 0)
         {
             Console.WriteLine("Topics not yet attempted:");
@@ -718,7 +718,7 @@ public sealed class MobileClientApp : IDisposable
             Console.WriteLine();
         }
 
-        // Контекстное меню
+        
         Console.WriteLine("Options:");
         Console.WriteLine("1) Create custom test for problematic topics");
         Console.WriteLine("0) Back to menu");
@@ -729,12 +729,12 @@ public sealed class MobileClientApp : IDisposable
         switch (choice)
         {
             case "1":
-                // Создаем тест из проблемных тем (Top3ErrorTopics + OtherTopics)
+                
                 var problematicTopics = new List<ApiClient.TopicStatistics>();
                 problematicTopics.AddRange(stats.Top3ErrorTopics);
                 problematicTopics.AddRange(stats.OtherTopics);
                 
-                // Фильтруем только темы с валидным TopicId
+                
                 var validTopics = problematicTopics
                     .Where(t => t.TopicId.HasValue)
                     .Take(5)
@@ -752,7 +752,7 @@ public sealed class MobileClientApp : IDisposable
                 
                 if (validTopics.Count > 0)
                 {
-                    // Берем первые 5 тем, по 5 заданий каждая, сложность medium
+                    
                     await CreateMixedTestFromTopicsAsync(subjectId, validTopics, "problematic topics", tasksPerTopic: 5, difficulty: 3);
                 }
                 else
@@ -772,7 +772,7 @@ public sealed class MobileClientApp : IDisposable
 
     private async Task ViewRecommendationsAsync()
     {
-        // Получаем список предметов
+        
         var subjectsResult = await _apiClient.GetAllSubjectsAsync(_cts.Token);
         if (!subjectsResult.Success)
         {
@@ -808,7 +808,7 @@ public sealed class MobileClientApp : IDisposable
 
     private async Task ShowRecommendationsForSubjectAsync(long subjectId, string subjectName)
     {
-        int criticalThreshold = 80; // По умолчанию
+        int criticalThreshold = 80; 
 
         while (true)
         {
@@ -826,7 +826,7 @@ public sealed class MobileClientApp : IDisposable
             Console.WriteLine($"Critical threshold: {criticalThreshold}%");
             Console.WriteLine();
 
-            // 1. Критические темы
+            
             if (recommendations.CriticalTopics.Count > 0)
             {
                 Console.WriteLine($"1. Topics with accuracy below {criticalThreshold}% ({recommendations.CriticalTopics.Count}):");
@@ -852,7 +852,7 @@ public sealed class MobileClientApp : IDisposable
                 Console.WriteLine();
             }
 
-            // 2. Темы для повторения по Лейтнеру
+            
             if (recommendations.LeitnerTopics.Count > 0)
             {
                 Console.WriteLine($"2. Topics to review (Leitner system) ({recommendations.LeitnerTopics.Count}):");
@@ -882,7 +882,7 @@ public sealed class MobileClientApp : IDisposable
                 Console.WriteLine();
             }
 
-            // 3. Неизученные темы
+            
             if (recommendations.UnstudiedTopics.Count > 0)
             {
                 Console.WriteLine($"3. Unstudied topics ({recommendations.UnstudiedTopics.Count}):");
@@ -899,7 +899,7 @@ public sealed class MobileClientApp : IDisposable
                 Console.WriteLine();
             }
 
-            // Меню действий
+            
             Console.WriteLine("Options:");
             Console.WriteLine("1) Create test for critical topics");
             Console.WriteLine("2) Create test for topics to review");
@@ -915,7 +915,7 @@ public sealed class MobileClientApp : IDisposable
                 case "1":
                     if (recommendations.CriticalTopics.Count > 0)
                     {
-                        // Первые 5 критических тем, по 5 заданий каждая, сложность medium
+                        
                         var selectedTopics = recommendations.CriticalTopics.Take(5).ToList();
                         await CreateMixedTestFromTopicsAsync(subjectId, selectedTopics, "critical topics", tasksPerTopic: 5, difficulty: 3);
                     }
@@ -929,7 +929,7 @@ public sealed class MobileClientApp : IDisposable
                 case "2":
                     if (recommendations.LeitnerTopics.Count > 0)
                     {
-                        // Первые 5 тем на повторение, по 5 заданий каждая, сложность medium
+                        
                         var selectedTopics = recommendations.LeitnerTopics.Take(5).ToList();
                         await CreateMixedTestFromTopicsAsync(subjectId, selectedTopics, "topics to review", tasksPerTopic: 5, difficulty: 3);
                     }
@@ -955,7 +955,7 @@ public sealed class MobileClientApp : IDisposable
 
                         if (topicInput == "0")
                         {
-                            // Возврат на предыдущий шаг - просто продолжаем цикл
+                            
                             continue;
                         }
 
@@ -963,7 +963,7 @@ public sealed class MobileClientApp : IDisposable
                         {
                             var selectedTopic = recommendations.UnstudiedTopics.ElementAt(topicIndex - 1);
                             var topics = new List<ApiClient.TopicRecommendation> { selectedTopic };
-                            // 25 заданий, сложность easy
+                            
                             await CreateMixedTestFromTopicsAsync(subjectId, topics, $"topic '{selectedTopic.TopicName}'", tasksPerTopic: 25, difficulty: 2);
                         }
                         else
@@ -1136,7 +1136,7 @@ public sealed class MobileClientApp : IDisposable
                     }
                     break;
                 case "4":
-                    // Показываем summary и предлагаем выбор действия
+                    
                     var finalAnswered = await SyncAnswerStateAsync(attemptId, orderedTasks.Length);
                     Console.WriteLine($"Attempt {attemptId} summary: answered {finalAnswered}/{orderedTasks.Length}.");
                     Console.WriteLine();
@@ -1150,7 +1150,7 @@ public sealed class MobileClientApp : IDisposable
                     switch (actionChoice)
                     {
                         case "1":
-                            // Завершить попытку - подсчитываем результаты и завершаем
+                            
                             Console.WriteLine("Completing attempt...");
                             var (_, finalCorrect) = await LoadAttemptSummaryAsync(attemptId, orderedTasks.Length);
                             var completeRequest = new CompleteAttemptRequest((decimal?)finalCorrect, null, null);
@@ -1158,27 +1158,27 @@ public sealed class MobileClientApp : IDisposable
                             Console.WriteLine(completeResult.Success
                                 ? $"Attempt completed. Score: {finalCorrect}/{orderedTasks.Length}"
                                 : $"Failed to complete attempt: {FormatError(completeResult.Error)}");
-                            return; // Выходим из метода после завершения попытки
+                            return; 
                             
                         case "2":
-                            // Прервать попытку - помечаем как aborted
+                            
                             Console.WriteLine("Aborting attempt...");
                             var abortResult = await _apiClient.AbortAttemptAsync(attemptId, _cts.Token);
                             Console.WriteLine(abortResult.Success
                                 ? "Attempt aborted. You can start a new attempt later."
                                 : $"Failed to abort attempt: {FormatError(abortResult.Error)}");
-                            return; // Выходим из метода после прерывания попытки
+                            return; 
                             
                         case "3":
-                            // Отмена - возвращаемся к тесту
+                            
                             Console.WriteLine("Returning to test.");
                             Console.WriteLine();
-                            continue; // Продолжаем цикл - возвращаемся к текущему вопросу
+                            continue; 
                             
                         default:
                             Console.WriteLine("Unknown option. Returning to test.");
                             Console.WriteLine();
-                            continue; // Продолжаем цикл при неизвестной опции
+                            continue; 
                     }
                 default:
                     Console.WriteLine("Unknown option.");
@@ -1192,7 +1192,7 @@ public sealed class MobileClientApp : IDisposable
     private async Task<bool> SubmitAnswerForTaskAsync(long attemptId, TestTask task)
     {
         var answerText = Prompt("Enter your answer (leave empty to skip)");
-        // Храним просто JSON-строку вместо объекта {"value": "..."}
+        
         var givenAnswer = string.IsNullOrWhiteSpace(answerText) 
             ? "\"\"" 
             : JsonSerializer.Serialize(answerText);
@@ -1227,10 +1227,10 @@ public sealed class MobileClientApp : IDisposable
 
         var answers = attemptState.Value.Answers ?? Array.Empty<AttemptAnswer>();
         
-        // Загружаем ответы в кэш, извлекая значение из JSON
+        
         foreach (var answer in answers)
         {
-            // Проверяем, что GivenAnswer не null и не пустой
+            
             if (string.IsNullOrWhiteSpace(answer.GivenAnswer))
             {
                 _answerCache.Remove(answer.TaskId);
@@ -1244,12 +1244,12 @@ public sealed class MobileClientApp : IDisposable
             }
             else
             {
-                // Если не удалось извлечь, очищаем кэш для этого задания
+                
                 _answerCache.Remove(answer.TaskId);
             }
         }
 
-        // Возвращаем только количество отвеченных (без правильных)
+        
         var answered = answers.Count;
         return Math.Min(answered, totalTasks);
     }
@@ -1265,7 +1265,7 @@ public sealed class MobileClientApp : IDisposable
 
         var answers = attemptState.Value.Answers ?? Array.Empty<AttemptAnswer>();
         var answered = answers.Count;
-        // Теперь можно показать правильные ответы, так как тест завершается
+        
         var correct = answers.Count(a => a.IsCorrect);
         return (Math.Min(answered, totalTasks), Math.Min(correct, totalTasks));
     }
@@ -1279,7 +1279,7 @@ public sealed class MobileClientApp : IDisposable
 
         var trimmed = json.Trim();
         
-        // Если это не JSON (не начинается с " или { или [), возвращаем как есть
+        
         if (!trimmed.StartsWith("\"", StringComparison.Ordinal) && 
             !trimmed.StartsWith("{", StringComparison.Ordinal) && 
             !trimmed.StartsWith("[", StringComparison.Ordinal))
@@ -1289,16 +1289,16 @@ public sealed class MobileClientApp : IDisposable
 
         try
         {
-            // Парсим как JSON - ожидаем строку или объект с полем "value" (для обратной совместимости)
+            
             using var document = JsonDocument.Parse(trimmed);
             
-            // Если это JSON-строка (самый простой случай)
+            
             if (document.RootElement.ValueKind == JsonValueKind.String)
             {
                 return document.RootElement.GetString();
             }
             
-            // Если это объект с полем "value" (для обратной совместимости со старыми данными)
+            
             if (document.RootElement.ValueKind == JsonValueKind.Object &&
                 document.RootElement.TryGetProperty("value", out var valueProperty))
             {
@@ -1309,12 +1309,12 @@ public sealed class MobileClientApp : IDisposable
                 return valueProperty.GetRawText().Trim('"');
             }
             
-            // Для других типов возвращаем как строку
+            
             return document.RootElement.GetRawText();
         }
         catch (JsonException)
         {
-            // Если не JSON, убираем кавычки если есть
+            
             if (trimmed.StartsWith("\"", StringComparison.Ordinal) && 
                 trimmed.EndsWith("\"", StringComparison.Ordinal) && 
                 trimmed.Length > 1)
@@ -1470,7 +1470,7 @@ public sealed class MobileClientApp : IDisposable
             return;
         }
 
-        // Проверяем, что учитель существует в списке
+        
         var teacherToRemove = teachers.FirstOrDefault(t => t.Id == teacherId);
         if (teacherToRemove == null)
         {
@@ -1541,7 +1541,7 @@ public sealed class MobileClientApp : IDisposable
     {
         Console.WriteLine("=== Create Mixed Test ===");
         
-        // Выбор предмета
+        
         var subjectsResult = await _apiClient.GetAllSubjectsAsync(_cts.Token);
         if (!subjectsResult.Success || subjectsResult.Value == null || !subjectsResult.Value.Any())
         {
@@ -1565,23 +1565,23 @@ public sealed class MobileClientApp : IDisposable
         var subjectId = subjects[subjectIndex - 1].Id;
         Console.WriteLine();
 
-        // Ввод названия теста (опционально)
+        
         Console.Write("Enter test title (or press Enter for auto-generated): ");
         var titleInput = Console.ReadLine()?.Trim();
         string? title = string.IsNullOrWhiteSpace(titleInput) ? null : titleInput;
         Console.WriteLine();
 
-        // Ввод time limit
+        
         Console.Write("Enter time limit in minutes (or press Enter for unlimited): ");
         var timeLimitInput = Console.ReadLine()?.Trim();
         int? timeLimitSec = null;
         if (!string.IsNullOrWhiteSpace(timeLimitInput) && int.TryParse(timeLimitInput, out var minutes) && minutes > 0)
         {
-            timeLimitSec = minutes * 60; // Конвертируем минуты в секунды
+            timeLimitSec = minutes * 60; 
         }
         Console.WriteLine();
 
-        // Выбор тем
+        
         Console.WriteLine("Select topics for the test:");
         Console.WriteLine("1) Use default (top 3 error topics, 10 tasks each, medium difficulty)");
         Console.WriteLine("2) Custom selection");
@@ -1593,12 +1593,12 @@ public sealed class MobileClientApp : IDisposable
 
         if (selectionChoice == "1")
         {
-            // Используем дефолтные значения - темы будут определены на сервере
+            
             topics = new List<ApiClient.TopicSelection>();
         }
         else if (selectionChoice == "2")
         {
-            // Получаем статистику для выбора тем
+            
             var statsResult = await _apiClient.GetSubjectStatisticsAsync(subjectId, _cts.Token);
             if (!statsResult.Success || statsResult.Value == null)
             {
@@ -1609,7 +1609,7 @@ public sealed class MobileClientApp : IDisposable
             var stats = statsResult.Value;
             var allTopics = new List<(long? TopicId, string TopicName)>();
             
-            // Добавляем темы с ошибками
+            
             foreach (var topic in stats.Top3ErrorTopics)
             {
                 if (topic.TopicId.HasValue)
@@ -1695,7 +1695,7 @@ public sealed class MobileClientApp : IDisposable
             return;
         }
 
-        // Создаем тест
+        
         Console.WriteLine("Creating mixed test...");
         var request = new ApiClient.GenerateMixedTestRequest(
             subjectId,
@@ -1722,7 +1722,7 @@ public sealed class MobileClientApp : IDisposable
     {
         Console.WriteLine("=== My Mixed Tests List ===");
         
-        // Выбор предмета
+        
         var subjectsResult = await _apiClient.GetAllSubjectsAsync(_cts.Token);
         if (!subjectsResult.Success || subjectsResult.Value == null || !subjectsResult.Value.Any())
         {
@@ -1812,30 +1812,30 @@ public sealed class MobileClientApp : IDisposable
     {
         Console.WriteLine($"=== Create Mixed Test for {description} ===");
         
-        // Ввод названия теста (опционально)
+        
         Console.Write("Enter test title (or press Enter for auto-generated): ");
         var titleInput = Console.ReadLine()?.Trim();
         string? title = string.IsNullOrWhiteSpace(titleInput) ? null : titleInput;
         Console.WriteLine();
 
-        // Ввод time limit
+        
         Console.Write("Enter time limit in minutes (or press Enter for unlimited): ");
         var timeLimitInput = Console.ReadLine()?.Trim();
         int? timeLimitSec = null;
         if (!string.IsNullOrWhiteSpace(timeLimitInput) && int.TryParse(timeLimitInput, out var minutes) && minutes > 0)
         {
-            timeLimitSec = minutes * 60; // Конвертируем минуты в секунды
+            timeLimitSec = minutes * 60; 
         }
         Console.WriteLine();
 
-        // Преобразуем темы рекомендаций в TopicSelection
+        
         var topicSelections = topics.Select(t => new ApiClient.TopicSelection(
             t.TopicId,
             tasksPerTopic,
             difficulty
         )).ToList();
 
-        // Создаем тест
+        
         Console.WriteLine("Creating mixed test...");
         var request = new ApiClient.GenerateMixedTestRequest(
             subjectId,
@@ -1909,7 +1909,7 @@ public sealed class MobileClientApp : IDisposable
             Console.WriteLine($"Statement: {task.Statement}");
             Console.WriteLine();
 
-            // Ответ пользователя
+            
             if (task.GivenAnswer != null)
             {
                 var answerStatus = task.IsCorrect == true ? "Correct" : task.IsCorrect == false ? "Incorrect" : "Unknown";
@@ -1920,19 +1920,19 @@ public sealed class MobileClientApp : IDisposable
                 Console.WriteLine("Your answer: Not answered");
             }
 
-            // Правильный ответ
+            
             if (task.CorrectAnswer != null)
             {
                 Console.WriteLine($"Correct answer: {task.CorrectAnswer}");
             }
 
-            // Объяснение
+            
             if (!string.IsNullOrWhiteSpace(task.Explanation))
             {
                 Console.WriteLine($"Explanation: {task.Explanation}");
             }
 
-            // Время, потраченное на задание
+            
             if (task.TimeSpentSec.HasValue)
             {
                 var taskMinutes = task.TimeSpentSec.Value / 60;

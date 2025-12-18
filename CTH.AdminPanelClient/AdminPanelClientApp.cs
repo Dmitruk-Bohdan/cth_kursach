@@ -83,7 +83,6 @@ public sealed class AdminPanelClientApp : IDisposable
             return;
         }
 
-        // Проверяем роль пользователя
         if (_apiClient.UserRoleId == null)
         {
             Console.WriteLine("Error: Could not determine user role.");
@@ -1484,7 +1483,7 @@ public sealed class AdminPanelClientApp : IDisposable
             IsPublished = string.IsNullOrWhiteSpace(isPublishedInput) ? false : (isPublishedInput == "y"),
             IsPublic = string.IsNullOrWhiteSpace(isPublicInput) ? false : (isPublicInput == "y"),
             IsStateArchive = string.IsNullOrWhiteSpace(isStateArchiveInput) ? false : (isStateArchiveInput == "y"),
-            Tasks = Array.Empty<TestTaskUpdateDto>() // Tasks editing is complex, left empty for now
+            Tasks = Array.Empty<TestTaskUpdateDto>()
         };
 
         Console.WriteLine("Updating test...");
@@ -1596,7 +1595,6 @@ public sealed class AdminPanelClientApp : IDisposable
             return "Unknown error occurred.";
         }
 
-        // Попытка извлечь сообщение об ошибке из JSON
         try
         {
             if (error.Contains("\"message\"") || error.Contains("\"Message\""))
@@ -1611,7 +1609,6 @@ public sealed class AdminPanelClientApp : IDisposable
         }
         catch
         {
-            // Игнорируем ошибки парсинга
         }
 
         return error;

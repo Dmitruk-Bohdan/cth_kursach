@@ -67,7 +67,6 @@ public sealed class ApiClient : IDisposable
         _accessToken = login.AccessToken;
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
 
-        // Декодируем токен для получения роли
         try
         {
             var handler = new JwtSecurityTokenHandler();
@@ -81,7 +80,6 @@ public sealed class ApiClient : IDisposable
                 }
                 else
                 {
-                    // Если роль не найдена, попробуем найти по другому типу claim
                     roleClaim = token.Claims.FirstOrDefault(c => c.Type == "Role");
                     if (roleClaim != null && int.TryParse(roleClaim.Value, out roleId))
                     {
@@ -92,7 +90,6 @@ public sealed class ApiClient : IDisposable
         }
         catch (Exception)
         {
-            // Игнорируем ошибки декодирования токена, но сохраняем токен
         }
 
         return Result<LoginResponse>.Ok(login);
@@ -123,7 +120,6 @@ public sealed class ApiClient : IDisposable
             return Result<IReadOnlyCollection<SubjectListItem>>.Fail(error);
         }
 
-        // API оборачивает ответ в ResponseModel
         var responseModel = await response.Content.ReadFromJsonAsync<ResponseModel<List<SubjectListItem>>>(_jsonOptions, cancellationToken);
         if (responseModel == null || !responseModel.Success || responseModel.Result == null)
         {
@@ -148,7 +144,6 @@ public sealed class ApiClient : IDisposable
             return Result<IReadOnlyCollection<TaskListItem>>.Fail(error);
         }
 
-        // API может возвращать либо ResponseModel, либо напрямую список
         try
         {
             var responseModel = await response.Content.ReadFromJsonAsync<ResponseModel<List<TaskListItem>>>(_jsonOptions, cancellationToken);
@@ -159,7 +154,6 @@ public sealed class ApiClient : IDisposable
         }
         catch
         {
-            // Если не ResponseModel, попробуем напрямую список
         }
 
         var tasks = await response.Content.ReadFromJsonAsync<List<TaskListItem>>(_jsonOptions, cancellationToken);
@@ -245,7 +239,7 @@ public sealed class ApiClient : IDisposable
         
         if (response.IsSuccessStatusCode)
         {
-            // API возвращает TestDetailsDto, но нам нужен только ID и Title
+            
             var testDetails = await response.Content.ReadFromJsonAsync<TestDetailsDto>(_jsonOptions, cancellationToken);
             if (testDetails != null)
             {
@@ -749,7 +743,6 @@ public sealed class ApiClient : IDisposable
         string? Explanation,
         bool? IsActive);
 
-    // Класс для десериализации обернутого ответа API
     private sealed class ResponseModel<T>
     {
         public bool Success { get; set; }
@@ -816,7 +809,6 @@ public sealed class ApiClient : IDisposable
         public IReadOnlyCollection<long> StudentIds { get; init; } = Array.Empty<long>();
     }
 
-    // Класс для десериализации ответа API
     public sealed class TestDetailsDto
     {
         public long Id { get; set; }

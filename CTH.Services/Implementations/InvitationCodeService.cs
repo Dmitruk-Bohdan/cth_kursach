@@ -18,7 +18,7 @@ public class InvitationCodeService : IInvitationCodeService
     private readonly ITeacherStudentRepository _teacherStudentRepository;
     private readonly IStudentAttemptService _studentAttemptService;
     private readonly IStudentStatisticsService _studentStatisticsService;
-    private const string CodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Исключаем похожие символы (0, O, I, 1)
+    private const string CodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; 
     private const int CodeLength = 32; // XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX = 32 символа
 
     public InvitationCodeService(
@@ -35,7 +35,7 @@ public class InvitationCodeService : IInvitationCodeService
 
     public async Task<HttpOperationResult<InvitationCodeDto>> CreateInvitationCodeAsync(long teacherId, CreateInvitationCodeRequestDto request, CancellationToken cancellationToken)
     {
-        // Генерируем уникальный код
+        
         string code;
         int attempts = 0;
         const int maxAttempts = 10;
@@ -60,7 +60,7 @@ public class InvitationCodeService : IInvitationCodeService
             };
         }
 
-        // Форматируем код как GUID: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+        
         code = FormatCode(code);
 
         var invitationCode = new InvitationCode
@@ -182,7 +182,7 @@ public class InvitationCodeService : IInvitationCodeService
 
     private static string FormatCode(string code)
     {
-        // Форматируем как GUID: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+        
         if (code.Length == CodeLength)
         {
             return $"{code[0..8]}-{code[8..12]}-{code[12..16]}-{code[16..20]}-{code[20..32]}";
@@ -207,7 +207,7 @@ public class InvitationCodeService : IInvitationCodeService
 
     public async Task<HttpOperationResult> RemoveStudentAsync(long teacherId, long studentId, CancellationToken cancellationToken)
     {
-        // Проверяем, существует ли связь
+        
         var existing = await _teacherStudentRepository.GetByTeacherAndStudentAsync(teacherId, studentId, cancellationToken);
         if (existing == null)
         {
@@ -218,7 +218,7 @@ public class InvitationCodeService : IInvitationCodeService
             };
         }
 
-        // Проверяем, что это действительно связь этого учителя
+        
         if (existing.TeacherId != teacherId)
         {
             return new HttpOperationResult
@@ -228,7 +228,7 @@ public class InvitationCodeService : IInvitationCodeService
             };
         }
 
-        // Удаляем связь (это автоматически снимет доступ к тестам учителя)
+        
         await _teacherStudentRepository.DeleteAsync(teacherId, studentId, cancellationToken);
 
         return new HttpOperationResult(HttpStatusCode.NoContent);
@@ -242,7 +242,7 @@ public class InvitationCodeService : IInvitationCodeService
         int offset,
         CancellationToken cancellationToken)
     {
-        // Проверяем, что студент связан с преподавателем
+        
         var relationship = await _teacherStudentRepository.GetByTeacherAndStudentAsync(teacherId, studentId, cancellationToken);
         if (relationship == null)
         {
@@ -253,7 +253,7 @@ public class InvitationCodeService : IInvitationCodeService
             };
         }
 
-        // Делегируем вызов сервису попыток
+        
         return await _studentAttemptService.GetAttemptsAsync(studentId, status, limit, offset, cancellationToken);
     }
 
@@ -263,7 +263,7 @@ public class InvitationCodeService : IInvitationCodeService
         long attemptId,
         CancellationToken cancellationToken)
     {
-        // Проверяем, что студент связан с преподавателем
+        
         var relationship = await _teacherStudentRepository.GetByTeacherAndStudentAsync(teacherId, studentId, cancellationToken);
         if (relationship == null)
         {
@@ -274,7 +274,7 @@ public class InvitationCodeService : IInvitationCodeService
             };
         }
 
-        // Делегируем вызов сервису попыток
+        
         return await _studentAttemptService.GetAttemptDetailsWithTasksAsync(studentId, attemptId, cancellationToken);
     }
 
@@ -283,7 +283,7 @@ public class InvitationCodeService : IInvitationCodeService
         long studentId,
         CancellationToken cancellationToken)
     {
-        // Проверяем, что студент связан с преподавателем
+        
         var relationship = await _teacherStudentRepository.GetByTeacherAndStudentAsync(teacherId, studentId, cancellationToken);
         if (relationship == null)
         {
@@ -294,7 +294,7 @@ public class InvitationCodeService : IInvitationCodeService
             };
         }
 
-        // Делегируем вызов сервису статистики
+        
         return await _studentStatisticsService.GetAllSubjectsAsync(cancellationToken);
     }
 
@@ -304,7 +304,7 @@ public class InvitationCodeService : IInvitationCodeService
         long subjectId,
         CancellationToken cancellationToken)
     {
-        // Проверяем, что студент связан с преподавателем
+        
         var relationship = await _teacherStudentRepository.GetByTeacherAndStudentAsync(teacherId, studentId, cancellationToken);
         if (relationship == null)
         {
@@ -315,7 +315,7 @@ public class InvitationCodeService : IInvitationCodeService
             };
         }
 
-        // Делегируем вызов сервису статистики
+        
         return await _studentStatisticsService.GetSubjectStatisticsAsync(studentId, subjectId, cancellationToken);
     }
 }

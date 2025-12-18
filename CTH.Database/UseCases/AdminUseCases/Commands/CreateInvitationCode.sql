@@ -3,3 +3,5 @@ VALUES (@teacher_id, @code, @max_uses, 0, @expires_at, @status, NOW())
 RETURNING id;
 
 
+
+

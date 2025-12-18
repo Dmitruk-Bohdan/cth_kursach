@@ -67,7 +67,6 @@ public sealed class ApiClient : IDisposable
         _accessToken = login.AccessToken;
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
 
-        // Декодируем токен для получения роли
         try
         {
             var handler = new JwtSecurityTokenHandler();
@@ -91,7 +90,6 @@ public sealed class ApiClient : IDisposable
         }
         catch (Exception)
         {
-            // Игнорируем ошибки декодирования токена
         }
 
         return Result<LoginResponse>.Ok(login);
@@ -112,7 +110,6 @@ public sealed class ApiClient : IDisposable
         return Result.Fail(string.IsNullOrWhiteSpace(error) ? "Logout failed." : error);
     }
 
-    // Admin API methods - Users
     public async Task<Result<IReadOnlyCollection<UserListItemDto>>> GetAllUsersAsync(CancellationToken cancellationToken)
     {
         var response = await _httpClient.GetAsync("/admin/users", cancellationToken);
@@ -149,7 +146,6 @@ public sealed class ApiClient : IDisposable
         return await HandleResponse(response, cancellationToken);
     }
 
-    // Admin API methods - Subjects
     public async Task<Result<IReadOnlyCollection<SubjectListItemDto>>> GetAllSubjectsAsync(CancellationToken cancellationToken)
     {
         var response = await _httpClient.GetAsync("/admin/subjects", cancellationToken);
@@ -174,7 +170,6 @@ public sealed class ApiClient : IDisposable
         return await HandleResponse(response, cancellationToken);
     }
 
-    // Admin API methods - Topics
     public async Task<Result<IReadOnlyCollection<TopicListItemDto>>> GetAllTopicsAsync(long? subjectId, CancellationToken cancellationToken)
     {
         var url = "/admin/topics";
@@ -204,7 +199,6 @@ public sealed class ApiClient : IDisposable
         return await HandleResponse(response, cancellationToken);
     }
 
-    // Admin API methods - Tasks
     public async Task<Result<IReadOnlyCollection<TaskListItemDto>>> GetAllTasksAsync(TaskFilterDto? filter, CancellationToken cancellationToken)
     {
         var url = "/admin/tasks";
@@ -257,7 +251,6 @@ public sealed class ApiClient : IDisposable
         return await HandleResponse(response, cancellationToken);
     }
 
-    // Admin API methods - Tests
     public async Task<Result<IReadOnlyCollection<TestListItemDto>>> GetAllTestsAsync(TestFilterDto? filter, CancellationToken cancellationToken)
     {
         var url = "/admin/tests";
@@ -298,7 +291,6 @@ public sealed class ApiClient : IDisposable
         return await HandleResponse(response, cancellationToken);
     }
 
-    // Admin API methods - Invitation Codes
     public async Task<Result<IReadOnlyCollection<InvitationCodeListItemDto>>> GetAllInvitationCodesAsync(long? teacherId, string? status, CancellationToken cancellationToken)
     {
         var url = "/admin/invitation-codes";
@@ -337,7 +329,6 @@ public sealed class ApiClient : IDisposable
         return await HandleResponse(response, cancellationToken);
     }
 
-    // Helper methods
     private async Task<Result<T>> HandleResponse<T>(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         if (!response.IsSuccessStatusCode)
@@ -434,7 +425,6 @@ public sealed class ApiClient : IDisposable
         _httpClient?.Dispose();
     }
 
-    // DTOs
     public sealed record RegisterRequest
     {
         public required string Email { get; init; }
@@ -487,7 +477,6 @@ public sealed class ApiClient : IDisposable
         public static Result Fail(string error) => new(false, error);
     }
 
-    // Admin DTOs - Users
     public sealed record UserListItemDto
     {
         public long Id { get; init; }
@@ -527,7 +516,6 @@ public sealed class ApiClient : IDisposable
         public int? RoleTypeId { get; init; }
     }
 
-    // Admin DTOs - Subjects
     public sealed record SubjectListItemDto
     {
         public long Id { get; init; }
@@ -562,7 +550,6 @@ public sealed class ApiClient : IDisposable
         public bool? IsActive { get; init; }
     }
 
-    // Admin DTOs - Topics
     public sealed record TopicListItemDto
     {
         public long Id { get; init; }
@@ -608,7 +595,6 @@ public sealed class ApiClient : IDisposable
         public bool? IsActive { get; init; }
     }
 
-    // Admin DTOs - Tasks
     public sealed record TaskListItemDto
     {
         public long Id { get; init; }
@@ -673,7 +659,7 @@ public sealed class ApiClient : IDisposable
         public bool? IsActive { get; init; }
     }
 
-    // Admin DTOs - Tests
+    
     public sealed record TestListItemDto
     {
         public long Id { get; init; }
@@ -760,7 +746,6 @@ public sealed class ApiClient : IDisposable
         public IReadOnlyCollection<TestTaskUpdateDto> Tasks { get; init; } = Array.Empty<TestTaskUpdateDto>();
     }
 
-    // Admin DTOs - Invitation Codes
     public sealed record InvitationCodeListItemDto
     {
         public long Id { get; init; }

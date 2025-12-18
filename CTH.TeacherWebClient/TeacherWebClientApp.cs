@@ -86,7 +86,7 @@ public sealed class TeacherWebClientApp : IDisposable
             Email = email,
             UserName = userName,
             Password = password,
-            RoleTypeId = (int)RoleTypeEnum.Teacher // Только роль преподавателя
+            RoleTypeId = (int)RoleTypeEnum.Teacher 
         };
 
         var result = await _apiClient.RegisterAsync(request, _cts.Token);
@@ -96,7 +96,6 @@ public sealed class TeacherWebClientApp : IDisposable
             return;
         }
 
-        // Проверяем роль пользователя
         if (_apiClient.UserRoleId != (int)RoleTypeEnum.Teacher && _apiClient.UserRoleId != (int)RoleTypeEnum.Admin)
         {
             Console.WriteLine("Registration failed: Invalid role assigned.");
@@ -131,7 +130,6 @@ public sealed class TeacherWebClientApp : IDisposable
             return;
         }
 
-        // Проверяем роль пользователя
         if (_apiClient.UserRoleId == null)
         {
             Console.WriteLine("Error: Could not determine user role.");
@@ -155,14 +153,12 @@ public sealed class TeacherWebClientApp : IDisposable
 
     private async Task ShowMainMenuAsync()
     {
-        // Сначала выбираем предмет
         var subject = await SelectSubjectAsync();
         if (subject == null)
         {
             return;
         }
 
-        // Затем показываем меню для выбранного предмета
         while (!_cts.IsCancellationRequested)
         {
             Console.WriteLine($"=== Subject: {subject.SubjectName} ===");
@@ -193,7 +189,7 @@ public sealed class TeacherWebClientApp : IDisposable
                     await ManageStudentsAsync();
                     break;
                 case "5":
-                    return; // Вернуться к выбору предмета
+                    return; 
                 case "6":
                     await LogoutAsync();
                     return;
@@ -249,8 +245,8 @@ public sealed class TeacherWebClientApp : IDisposable
         var testData = new TestCreationData
         {
             SubjectId = subjectId,
-            TestKind = "CUSTOM", // Преподаватели всегда создают CUSTOM тесты
-            IsStateArchive = false // Кастомные тесты преподавателей никогда не являются государственными
+            TestKind = "CUSTOM", 
+            IsStateArchive = false 
         };
 
         while (!_cts.IsCancellationRequested)
@@ -308,7 +304,7 @@ public sealed class TeacherWebClientApp : IDisposable
                 case "10":
                     if (await TryCreateTestAsync(testData))
                     {
-                        return; // Вернуться в главное меню после успешного создания
+                        return; 
                     }
                     break;
                 case "0":
@@ -377,7 +373,6 @@ public sealed class TeacherWebClientApp : IDisposable
         data.TestKind = kind;
         Console.WriteLine($"Test kind set to: {kind}");
         
-        // Если выбран PAST_EXAM, автоматически устанавливаем is_state_archive = true
         if (kind == "PAST_EXAM")
         {
             data.IsStateArchive = true;
@@ -397,7 +392,7 @@ public sealed class TeacherWebClientApp : IDisposable
             }
             else if (minutes > 0)
             {
-                data.TimeLimitSec = minutes * 60; // Конвертируем минуты в секунды
+                data.TimeLimitSec = minutes * 60; 
                 Console.WriteLine($"Time limit set to {minutes} minute(s) ({data.TimeLimitSec} seconds).");
             }
             else
@@ -441,7 +436,7 @@ public sealed class TeacherWebClientApp : IDisposable
             "2" => "exam",
             "3" => "control",
             "0" => null,
-            _ => data.Mode // Сохраняем текущее значение при неверном вводе
+            _ => data.Mode 
         };
 
         if (mode == null && choice == "0")
@@ -500,7 +495,6 @@ public sealed class TeacherWebClientApp : IDisposable
             Console.WriteLine("Invalid input. Please enter 'y' or 'n'.");
         }
         
-        // Кастомные тесты преподавателей всегда не являются государственными
         data.IsStateArchive = false;
     }
 
@@ -546,7 +540,6 @@ public sealed class TeacherWebClientApp : IDisposable
                     if (data.IsPublic)
                     {
                         Console.WriteLine("Test is now public (visible to all students).");
-                        // При переходе в публичный режим удаляем все индивидуальные доступы
                         await _apiClient.SetTestStudentAccessListAsync(testId, Array.Empty<long>(), _cts.Token);
                     }
                     else
@@ -583,7 +576,6 @@ public sealed class TeacherWebClientApp : IDisposable
 
         if (string.IsNullOrWhiteSpace(input))
         {
-            // Очищаем все доступы
             var result = await _apiClient.SetTestStudentAccessListAsync(testId, Array.Empty<long>(), _cts.Token);
             if (result.Success)
             {
@@ -626,7 +618,6 @@ public sealed class TeacherWebClientApp : IDisposable
         {
             Console.WriteLine("Student access updated successfully.");
             
-            // Показываем текущий список
             var getResult = await _apiClient.GetTestStudentAccessAsync(testId, _cts.Token);
             if (getResult.Success && getResult.Value!.Count > 0)
             {
@@ -720,7 +711,7 @@ public sealed class TeacherWebClientApp : IDisposable
                 case "7":
                     if (await TryCreateTaskAsync(taskData, data))
                     {
-                        return; // Вернуться в меню создания теста после успешного создания задания
+                        return; 
                     }
                     break;
                 case "0":
@@ -734,7 +725,6 @@ public sealed class TeacherWebClientApp : IDisposable
 
     private async Task SelectExistingTaskAsync(TestCreationData data)
     {
-        // Запрашиваем поисковый запрос
         Console.Write("Enter search query (ID or text, or leave empty for all tasks): ");
         var searchQuery = Console.ReadLine()?.Trim();
         Console.WriteLine();
@@ -755,7 +745,6 @@ public sealed class TeacherWebClientApp : IDisposable
             if (!string.IsNullOrWhiteSpace(searchQuery))
             {
                 Console.WriteLine("Trying to load all tasks...");
-                // Если поиск не дал результатов, загружаем все задания
                 var allTasksResult = await _apiClient.GetTasksBySubjectAsync(data.SubjectId, null, _cts.Token);
                 if (allTasksResult.Success && allTasksResult.Value != null)
                 {
@@ -774,7 +763,6 @@ public sealed class TeacherWebClientApp : IDisposable
             }
         }
 
-        // Показываем список заданий
         Console.WriteLine();
         Console.WriteLine($"Found {tasks.Count} task(s):");
         Console.WriteLine(new string('-', 100));
@@ -790,7 +778,6 @@ public sealed class TeacherWebClientApp : IDisposable
             Console.WriteLine($"{i + 1,3}. ID: {task.Id,5} | Type: {task.TaskType,-15} | Difficulty: {task.Difficulty,2} |{topicInfo}");
             Console.WriteLine($"     {statementPreview}");
             
-            // Добавляем отступ между заданиями (кроме последнего)
             if (i < tasks.Count - 1)
             {
                 Console.WriteLine();
@@ -799,7 +786,6 @@ public sealed class TeacherWebClientApp : IDisposable
         Console.WriteLine(new string('-', 100));
         Console.WriteLine();
 
-        // Выбор задания
         Console.Write($"Select task (1-{tasks.Count}): ");
         if (!int.TryParse(Console.ReadLine(), out var taskIndex) || taskIndex < 1 || taskIndex > tasks.Count)
         {
@@ -810,14 +796,12 @@ public sealed class TeacherWebClientApp : IDisposable
         var selectedTask = tasks[taskIndex - 1];
         var taskId = selectedTask.Id;
 
-        // Проверяем, что задание не добавлено дважды
         if (data.Tasks.Any(t => t.TaskId == taskId))
         {
             Console.WriteLine($"Task {taskId} is already added.");
             return;
         }
 
-        // Автоматически определяем следующую позицию (добавляем в конец)
         var position = data.Tasks.Count > 0 
             ? data.Tasks.Max(t => t.Position) + 1 
             : 1;
@@ -826,7 +810,7 @@ public sealed class TeacherWebClientApp : IDisposable
         {
             TaskId = taskId,
             Position = position,
-            Weight = null // Weight не используется в текущей логике
+            Weight = null 
         });
 
         Console.WriteLine($"Task {taskId} ({selectedTask.TaskType}) added at position {position}.");
@@ -875,7 +859,6 @@ public sealed class TeacherWebClientApp : IDisposable
         {
             Console.WriteLine($"Failed to load tasks: {tasksResult.Error ?? "Unknown error"}");
             Console.WriteLine();
-            // Показываем хотя бы ID и позиции
             Console.WriteLine("Tasks:");
             foreach (var task in data.Tasks.OrderBy(t => t.Position))
             {
@@ -941,14 +924,12 @@ public sealed class TeacherWebClientApp : IDisposable
             return;
         }
 
-        // Проверяем, что задание есть в тесте
         if (!data.Tasks.Any(t => t.TaskId == taskId))
         {
             Console.WriteLine($"Task {taskId} is not in this test.");
             return;
         }
 
-        // Загружаем данные задания
         Console.WriteLine("Loading task data...");
         var tasksResult = await _apiClient.GetTasksBySubjectAsync(data.SubjectId, taskId.ToString(), _cts.Token);
         
@@ -965,7 +946,6 @@ public sealed class TeacherWebClientApp : IDisposable
             return;
         }
 
-        // Создаем объект для редактирования на основе существующего задания
         var taskData = new TaskCreationData
         {
             SubjectId = task.SubjectId,
@@ -976,7 +956,7 @@ public sealed class TeacherWebClientApp : IDisposable
             Statement = task.Statement,
             CorrectAnswer = ExtractAnswerValueFromJson(task.CorrectAnswer),
             Explanation = task.Explanation,
-            IsActive = true // По умолчанию активное
+            IsActive = true 
         };
 
         while (!_cts.IsCancellationRequested)
@@ -1022,7 +1002,7 @@ public sealed class TeacherWebClientApp : IDisposable
                 case "7":
                     if (await TryUpdateTaskAsync(taskId, taskData))
                     {
-                        return; // Вернуться в меню редактирования теста после успешного обновления
+                        return; 
                     }
                     break;
                 case "0":
@@ -1058,7 +1038,7 @@ public sealed class TeacherWebClientApp : IDisposable
         }
         catch
         {
-            // Если не удалось распарсить, возвращаем как есть
+            
         }
 
         return json;
@@ -1066,7 +1046,6 @@ public sealed class TeacherWebClientApp : IDisposable
 
     private async Task<bool> TryUpdateTaskAsync(long taskId, TaskCreationData taskData)
     {
-        // Валидация
         var errors = new List<string>();
 
         if (string.IsNullOrWhiteSpace(taskData.TaskType))
@@ -1100,7 +1079,6 @@ public sealed class TeacherWebClientApp : IDisposable
             return false;
         }
 
-        // Формируем правильный ответ в JSON формате
         var correctAnswerJson = System.Text.Json.JsonSerializer.Serialize(taskData.CorrectAnswer);
 
         var request = new ApiClient.UpdateTaskRequest(
@@ -1130,7 +1108,6 @@ public sealed class TeacherWebClientApp : IDisposable
 
     private async Task<bool> TryCreateTestAsync(TestCreationData data)
     {
-        // Валидация
         var errors = new List<string>();
 
         if (string.IsNullOrWhiteSpace(data.Title))
@@ -1142,14 +1119,11 @@ public sealed class TeacherWebClientApp : IDisposable
             errors.Add("Title cannot exceed 200 characters.");
         }
 
-        // TestKind всегда "CUSTOM" для тестов преподавателя, проверка не нужна
-
         if (data.Tasks.Count == 0)
         {
             errors.Add("At least one task is required.");
         }
 
-        // Проверяем уникальность позиций
         var positions = data.Tasks.Select(t => t.Position).ToList();
         if (positions.Count != positions.Distinct().Count())
         {
@@ -1424,7 +1398,7 @@ public sealed class TeacherWebClientApp : IDisposable
         var answer = Console.ReadLine()?.Trim();
         if (!string.IsNullOrWhiteSpace(answer))
         {
-            // Для numeric проверяем, что это числа через пробел
+            
             if (data.TaskType == "numeric")
             {
                 var parts = answer.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -1444,7 +1418,6 @@ public sealed class TeacherWebClientApp : IDisposable
                 }
             }
             
-            // Сохраняем просто как строку - при сохранении в БД обернем в JSON
             data.CorrectAnswer = answer;
             Console.WriteLine("Correct answer set.");
         }
@@ -1484,7 +1457,7 @@ public sealed class TeacherWebClientApp : IDisposable
 
     private async Task<bool> TryCreateTaskAsync(TaskCreationData data, TestCreationData testData)
     {
-        // Валидация
+        
         var errors = new List<string>();
 
         if (string.IsNullOrWhiteSpace(data.TaskType))
@@ -1512,7 +1485,6 @@ public sealed class TeacherWebClientApp : IDisposable
         }
         else if (data.TaskType == "numeric")
         {
-            // Дополнительная валидация для numeric
             var parts = data.CorrectAnswer.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             foreach (var part in parts)
             {
@@ -1535,7 +1507,6 @@ public sealed class TeacherWebClientApp : IDisposable
             return false;
         }
 
-        // Создание задания
         var request = new ApiClient.CreateTaskRequest(
             data.SubjectId,
             data.TopicId,
@@ -1560,12 +1531,10 @@ public sealed class TeacherWebClientApp : IDisposable
         Console.WriteLine($"Task created successfully! ID: {createdTaskId}");
         Console.WriteLine($"Task Type: {result.Value.TaskType}, Difficulty: {result.Value.Difficulty}");
 
-        // Автоматически добавляем задание в тест
         var position = testData.Tasks.Count > 0 
             ? testData.Tasks.Max(t => t.Position) + 1 
             : 1;
 
-        // Проверяем, что задание не добавлено дважды (на всякий случай)
         if (!testData.Tasks.Any(t => t.TaskId == createdTaskId))
         {
             testData.Tasks.Add(new TestTaskData
@@ -1663,7 +1632,7 @@ public sealed class TeacherWebClientApp : IDisposable
 
     private async Task EditTestAsync(long testId, long subjectId, string subjectName)
     {
-        // Загружаем детали теста
+        
         var result = await _apiClient.GetTestDetailsAsync(testId, _cts.Token);
         if (!result.Success)
         {
@@ -1674,7 +1643,6 @@ public sealed class TeacherWebClientApp : IDisposable
 
         var testDetails = result.Value!;
         
-        // Создаем объект для редактирования на основе существующего теста
         var testData = new TestCreationData
         {
             SubjectId = testDetails.SubjectId,
@@ -1753,7 +1721,7 @@ public sealed class TeacherWebClientApp : IDisposable
                 case "11":
                     if (await TryUpdateTestAsync(testId, testData))
                     {
-                        return; // Вернуться в меню управления тестами после успешного обновления
+                        return; 
                     }
                     break;
                 case "0":
@@ -1787,7 +1755,7 @@ public sealed class TeacherWebClientApp : IDisposable
 
     private async Task<bool> TryUpdateTestAsync(long testId, TestCreationData data)
     {
-        // Валидация
+        
         var errors = new List<string>();
 
         if (string.IsNullOrWhiteSpace(data.Title))
@@ -1820,7 +1788,6 @@ public sealed class TeacherWebClientApp : IDisposable
             return false;
         }
 
-        // Создаем запрос на обновление
         var request = new ApiClient.UpdateTestRequest(
             data.SubjectId,
             data.TestKind,
@@ -2203,7 +2170,7 @@ public sealed class TeacherWebClientApp : IDisposable
             return;
         }
 
-        // Проверяем, что студент существует в списке
+        
         var studentToRemove = students.FirstOrDefault(s => s.Id == studentId);
         if (studentToRemove == null)
         {
@@ -2212,8 +2179,7 @@ public sealed class TeacherWebClientApp : IDisposable
             return;
         }
 
-        Console.Write($"Are you sure you want to remove {studentToRemove.UserName}? ");
-        Console.WriteLine("This will revoke their access to all your tests. (y/n): ");
+        Console.Write($"Are you sure you want to remove {studentToRemove.UserName}? This will revoke their access to all your tests. (y/n): ");
         var confirm = Console.ReadLine()?.Trim().ToLower();
         
         if (confirm != "y")
@@ -2553,7 +2519,6 @@ public sealed class TeacherWebClientApp : IDisposable
         Console.WriteLine($"=== Statistics for {selectedStudent.UserName} - {selectedSubject.SubjectName} ===");
         Console.WriteLine();
 
-        // Общий процент успешно решенных заданий по предмету
         if (stats.OverallAccuracyPercentage.HasValue)
         {
             Console.WriteLine($"Overall accuracy: {stats.OverallAccuracyPercentage.Value:F1}%");
@@ -2566,7 +2531,7 @@ public sealed class TeacherWebClientApp : IDisposable
         }
         Console.WriteLine();
 
-        // Топ 3 темы с наибольшим количеством ошибок
+        
         if (stats.Top3ErrorTopics.Count > 0)
         {
             Console.WriteLine("Top 3 topics with most errors:");
@@ -2585,7 +2550,7 @@ public sealed class TeacherWebClientApp : IDisposable
             Console.WriteLine();
         }
 
-        // Остальные темы, отсортированные по возрастанию процента успешности
+        
         if (stats.OtherTopics.Count > 0)
         {
             Console.WriteLine("Other topics (sorted by accuracy, lowest first):");
@@ -2604,7 +2569,7 @@ public sealed class TeacherWebClientApp : IDisposable
             Console.WriteLine();
         }
 
-        // Темы, по которым еще не решал тесты
+        
         if (stats.UnattemptedTopics.Count > 0)
         {
             Console.WriteLine("Topics not yet attempted:");

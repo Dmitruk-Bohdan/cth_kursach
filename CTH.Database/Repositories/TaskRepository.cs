@@ -36,7 +36,6 @@ public class TaskRepository : ITaskRepository
 
     public async Task<IReadOnlyCollection<TaskItem>> GetTasksBySubjectAsync(long subjectId, string? searchQuery, CancellationToken cancellationToken)
     {
-        // Определяем, является ли поисковый запрос числом
         var searchIsNumber = false;
         if (!string.IsNullOrWhiteSpace(searchQuery) && long.TryParse(searchQuery, out _))
         {
@@ -163,7 +162,7 @@ public class TaskRepository : ITaskRepository
             new NpgsqlParameter("task_type", NpgsqlDbType.Varchar) { Value = task.TaskType },
             new NpgsqlParameter("difficulty", NpgsqlDbType.Smallint) { Value = task.Difficulty },
             new NpgsqlParameter("statement", NpgsqlDbType.Text) { Value = task.Statement },
-            new NpgsqlParameter("correct_answer", NpgsqlDbType.Text) { Value = System.Text.Json.JsonSerializer.Serialize(task.CorrectAnswer) }, // Обертываем строку в JSON
+            new NpgsqlParameter("correct_answer", NpgsqlDbType.Text) { Value = System.Text.Json.JsonSerializer.Serialize(task.CorrectAnswer) }, 
             new NpgsqlParameter("explanation", NpgsqlDbType.Text) { Value = (object?)task.Explanation ?? DBNull.Value },
             new NpgsqlParameter("is_active", NpgsqlDbType.Boolean) { Value = task.IsActive }
         };

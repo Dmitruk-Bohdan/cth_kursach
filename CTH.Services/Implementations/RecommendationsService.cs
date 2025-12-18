@@ -36,7 +36,7 @@ public class RecommendationsService : IRecommendationsService
 
         try
         {
-            // Получаем критические темы
+            
         var criticalTopicsQuery = _sqlQueryProvider.GetQuery("RecommendationsUseCases/Queries/GetCriticalTopics");
         var criticalTopics = await _sqlExecutor.QueryAsync(
             criticalTopicsQuery,
@@ -66,7 +66,7 @@ public class RecommendationsService : IRecommendationsService
             },
             cancellationToken);
 
-        // Получаем темы для повторения по Лейтнеру
+        
         var leitnerTopicsQuery = _sqlQueryProvider.GetQuery("RecommendationsUseCases/Queries/GetLeitnerTopics");
         var leitnerTopics = await _sqlExecutor.QueryAsync(
             leitnerTopicsQuery,
@@ -92,7 +92,7 @@ public class RecommendationsService : IRecommendationsService
             },
             cancellationToken);
 
-        // Получаем неизученные темы
+        
         var unstudiedTopicsQuery = _sqlQueryProvider.GetQuery("RecommendationsUseCases/Queries/GetUnstudiedTopics");
         var unstudiedTopics = await _sqlExecutor.QueryAsync(
             unstudiedTopicsQuery,
@@ -143,7 +143,7 @@ public class RecommendationsService : IRecommendationsService
         int newThreshold, 
         CancellationToken cancellationToken = default)
     {
-        // TODO: Сохранить порог в настройках пользователя (пока просто возвращаем успех)
+        
         _logger.LogInformation("User {UserId} updated critical threshold to {Threshold}", userId, newThreshold);
         return new HttpOperationResult(HttpStatusCode.OK);
     }

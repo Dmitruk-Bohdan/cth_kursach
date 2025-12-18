@@ -56,14 +56,14 @@ public class StudentStatisticsService : IStudentStatisticsService
         
         var stats = await _userStatsRepository.GetSubjectStatisticsWithTopicsAsync(userId, subjectId, cancellationToken);
         
-        // Первая запись - общая статистика по предмету (topic_id IS NULL)
+        
         var subjectStat = stats.FirstOrDefault(s => s.TopicId == null);
         
-        // Топ 3 темы с ошибками (первые 3 после общей статистики)
+        
         var top3ErrorTopics = stats
             .Where(s => s.TopicId.HasValue && s.AttemptsTotal > 0)
-            .OrderByDescending(s => s.AttemptsTotal - s.CorrectTotal) // По количеству ошибок
-            .ThenBy(s => s.CorrectTotal * 100.0m / s.AttemptsTotal) // По проценту успешности
+            .OrderByDescending(s => s.AttemptsTotal - s.CorrectTotal) 
+            .ThenBy(s => s.CorrectTotal * 100.0m / s.AttemptsTotal) 
             .Take(3)
             .Select(s => new TopicStatisticsDto
             {
@@ -79,11 +79,11 @@ public class StudentStatisticsService : IStudentStatisticsService
 
         var top3TopicIds = top3ErrorTopics.Select(t => t.TopicId).ToHashSet();
 
-        // Остальные темы с статистикой, отсортированные по возрастанию процента успешности
+        
         var otherTopics = stats
             .Where(s => s.TopicId.HasValue && s.AttemptsTotal > 0 && !top3TopicIds.Contains(s.TopicId))
-            .OrderBy(s => s.CorrectTotal * 100.0m / s.AttemptsTotal) // По проценту успешности (от низкого к высокому)
-            .ThenByDescending(s => s.AttemptsTotal - s.CorrectTotal) // По количеству ошибок
+            .OrderBy(s => s.CorrectTotal * 100.0m / s.AttemptsTotal) 
+            .ThenByDescending(s => s.AttemptsTotal - s.CorrectTotal) 
             .Select(s => new TopicStatisticsDto
             {
                 TopicId = s.TopicId,
@@ -96,7 +96,7 @@ public class StudentStatisticsService : IStudentStatisticsService
             })
             .ToArray();
 
-        // Получаем ВСЕ темы по предмету динамически из базы
+        
         var getAllTopicsQuery = _sqlQueryProvider.GetQuery("StatisticsUseCases/Queries/GetAllTopicsBySubject");
         var allTopicsFromDb = await _sqlExecutor.QueryAsync(
             getAllTopicsQuery,
@@ -110,14 +110,14 @@ public class StudentStatisticsService : IStudentStatisticsService
             new[] { new NpgsqlParameter("subject_id", NpgsqlDbType.Bigint) { Value = subjectId } },
             cancellationToken);
 
-        // Убираем дубликаты по ID сразу после получения из БД
+        
         var allTopics = allTopicsFromDb
             .GroupBy(t => t.Id)
             .Select(g => g.First())
             .ToList();
 
-        // Собираем ВСЕ темы, по которым есть ответы (attempts_total > 0)
-        // Берем из stats, которые пришли из SQL, но фильтруем только те, где attempts_total > 0
+        
+        
         var topicsWithAnswers = new HashSet<long>();
         foreach (var stat in stats)
         {
@@ -127,7 +127,7 @@ public class StudentStatisticsService : IStudentStatisticsService
             }
         }
 
-        // Также добавляем темы из top3 и other, чтобы быть уверенными
+        
         foreach (var topic in top3ErrorTopics)
         {
             if (topic.TopicId.HasValue)
@@ -148,7 +148,7 @@ public class StudentStatisticsService : IStudentStatisticsService
         _logger.LogInformation("Found {Count} total topics for subject {SubjectId}: {TopicNames}", 
             allTopics.Count, subjectId, string.Join(", ", allTopics.Select(t => $"{t.Id}:{t.TopicName}")));
 
-        // Темы без ответов = все темы по предмету минус те, по которым есть ответы
+        
         var unattemptedTopics = allTopics
             .Where(t => !topicsWithAnswers.Contains(t.Id))
             .Select(t => new TopicStatisticsDto

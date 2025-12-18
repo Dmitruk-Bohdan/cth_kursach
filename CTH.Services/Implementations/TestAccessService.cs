@@ -21,7 +21,7 @@ public class TestAccessService : ITestAccessService
 
     public async Task<HttpOperationResult<IReadOnlyCollection<StudentAccessDto>>> GetStudentsByTestAsync(long testId, long teacherId, CancellationToken cancellationToken)
     {
-        // Проверяем, что тест принадлежит учителю
+        
         var test = await _testRepository.GetTestByIdAsync(testId, cancellationToken);
         if (test == null)
         {
@@ -55,7 +55,7 @@ public class TestAccessService : ITestAccessService
 
     public async Task<HttpOperationResult> AddStudentAccessAsync(long testId, long studentId, long teacherId, CancellationToken cancellationToken)
     {
-        // Проверяем, что тест принадлежит учителю
+        
         var test = await _testRepository.GetTestByIdAsync(testId, cancellationToken);
         if (test == null)
         {
@@ -81,7 +81,7 @@ public class TestAccessService : ITestAccessService
 
     public async Task<HttpOperationResult> RemoveStudentAccessAsync(long testId, long studentId, long teacherId, CancellationToken cancellationToken)
     {
-        // Проверяем, что тест принадлежит учителю
+        
         var test = await _testRepository.GetTestByIdAsync(testId, cancellationToken);
         if (test == null)
         {
@@ -107,7 +107,7 @@ public class TestAccessService : ITestAccessService
 
     public async Task<HttpOperationResult> SetStudentAccessListAsync(long testId, IReadOnlyCollection<long> studentIds, long teacherId, CancellationToken cancellationToken)
     {
-        // Проверяем, что тест принадлежит учителю
+        
         var test = await _testRepository.GetTestByIdAsync(testId, cancellationToken);
         if (test == null)
         {
@@ -127,10 +127,10 @@ public class TestAccessService : ITestAccessService
             };
         }
 
-        // Удаляем все существующие доступы
+        
         await _testStudentAccessRepository.RemoveAllStudentAccessAsync(testId, cancellationToken);
 
-        // Добавляем новые доступы
+        
         foreach (var studentId in studentIds)
         {
             await _testStudentAccessRepository.AddStudentAccessAsync(testId, studentId, cancellationToken);

@@ -26,7 +26,6 @@ public class AdminService : IAdminService
     private readonly IInvitationCodeRepository _invitationCodeRepository;
     private readonly ILogger<AdminService> _logger;
 
-    // Query strings
     private readonly string _getAllUsersQuery;
     private readonly string _getAllSubjectsQuery;
     private readonly string _getAllTopicsQuery;
@@ -34,7 +33,6 @@ public class AdminService : IAdminService
     private readonly string _getAllTestsQuery;
     private readonly string _getAllInvitationCodesQuery;
     
-    // Command strings
     private readonly string _createUserQuery;
     private readonly string _updateUserQuery;
     private readonly string _blockUserQuery;
@@ -71,7 +69,6 @@ public class AdminService : IAdminService
         _invitationCodeRepository = invitationCodeRepository;
         _logger = logger;
 
-        // Load queries
         _getAllUsersQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Queries/GetAllUsers");
         _getAllSubjectsQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Queries/GetAllSubjects");
         _getAllTopicsQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Queries/GetAllTopics");
@@ -97,7 +94,6 @@ public class AdminService : IAdminService
         _deleteInvitationCodeQuery = _sqlQueryProvider.GetQuery("AdminUseCases/Commands/DeleteInvitationCode");
     }
 
-    // Users
     public async Task<HttpOperationResult<IReadOnlyCollection<Admin.UserListItemDto>>> GetAllUsersAsync(CancellationToken cancellationToken)
     {
         try
@@ -140,7 +136,6 @@ public class AdminService : IAdminService
     {
         try
         {
-            // Check if user exists
             var existingUser = await _userAccountRepository.GetByEmailAsync(request.Email, cancellationToken);
             if (existingUser != null)
             {
@@ -175,7 +170,6 @@ public class AdminService : IAdminService
                 };
             }
 
-            // Get created user details
             var users = await GetAllUsersAsync(cancellationToken);
             var user = users.Result?.FirstOrDefault(u => u.Id == userId);
             
@@ -235,7 +229,6 @@ public class AdminService : IAdminService
 
             if (!string.IsNullOrWhiteSpace(request.Email))
             {
-                // Check if email is already taken by another user
                 var existingUser = await _userAccountRepository.GetByEmailAsync(request.Email, cancellationToken);
                 if (existingUser != null && existingUser.Id != userId)
                 {
@@ -286,7 +279,6 @@ public class AdminService : IAdminService
                 };
             }
 
-            // Get updated user details
             var users = await GetAllUsersAsync(cancellationToken);
             var user = users.Result?.FirstOrDefault(u => u.Id == userId);
             
@@ -355,8 +347,6 @@ public class AdminService : IAdminService
 
     public async Task<HttpOperationResult> UnblockUserAsync(long userId, CancellationToken cancellationToken)
     {
-        // Unblocking is done by not revoking sessions - sessions will expire naturally
-        // This is a no-op, but we return success for API consistency
         return new HttpOperationResult
         {
             Status = HttpStatusCode.OK
@@ -398,9 +388,6 @@ public class AdminService : IAdminService
             };
         }
     }
-
-    // Continue with other methods...
-    // Due to length, I'll continue in the next part
 
     public async Task<HttpOperationResult<IReadOnlyCollection<Admin.SubjectListItemDto>>> GetAllSubjectsAsync(CancellationToken cancellationToken)
     {
@@ -600,7 +587,6 @@ public class AdminService : IAdminService
         }
     }
 
-    // Topics
     public async Task<HttpOperationResult<IReadOnlyCollection<Admin.TopicListItemDto>>> GetAllTopicsAsync(long? subjectId, CancellationToken cancellationToken)
     {
         try
@@ -718,7 +704,6 @@ public class AdminService : IAdminService
     {
         try
         {
-            // First get current topic to know subject_id if not provided
             var allTopics = await GetAllTopicsAsync(null, cancellationToken);
             var currentTopic = allTopics.Result?.FirstOrDefault(t => t.Id == topicId);
             
@@ -835,7 +820,6 @@ public class AdminService : IAdminService
         }
     }
 
-    // Tasks
     public async Task<HttpOperationResult<IReadOnlyCollection<Tasks.TaskListItemDto>>> GetAllTasksAsync(Admin.TaskFilterDto? filter, CancellationToken cancellationToken)
     {
         try
@@ -860,7 +844,7 @@ public class AdminService : IAdminService
                         SubjectId = reader.GetInt64(reader.GetOrdinal("subject_id")),
                         TopicId = reader.IsDBNull(reader.GetOrdinal("topic_id")) ? null : reader.GetInt64(reader.GetOrdinal("topic_id")),
                         TopicName = reader.IsDBNull(reader.GetOrdinal("topic_name")) ? null : reader.GetString(reader.GetOrdinal("topic_name")),
-                        TopicCode = null, // TopicCode не в запросе GetAllTasks
+                        TopicCode = null, 
                         TaskType = reader.GetString(reader.GetOrdinal("task_type")),
                         Difficulty = reader.GetInt16(reader.GetOrdinal("difficulty")),
                         Statement = reader.GetString(reader.GetOrdinal("statement")),
@@ -892,7 +876,6 @@ public class AdminService : IAdminService
     {
         try
         {
-            // Валидация
             if (request.Difficulty < 1 || request.Difficulty > 5)
             {
                 return new HttpOperationResult<Admin.TaskDetailsDto>
@@ -912,7 +895,6 @@ public class AdminService : IAdminService
                 };
             }
 
-            // Используем существующий репозиторий для создания
             var newTask = new CTH.Database.Entities.Public.TaskItem
             {
                 SubjectId = request.SubjectId,
@@ -927,7 +909,6 @@ public class AdminService : IAdminService
 
             var taskId = await _taskRepository.CreateAsync(newTask, cancellationToken);
 
-            // Получаем созданное задание
             var createdTask = await _taskRepository.GetTaskByIdAsync(taskId, cancellationToken);
             
             if (createdTask == null)
@@ -939,7 +920,6 @@ public class AdminService : IAdminService
                 };
             }
 
-            // Получаем название предмета и темы
             var subjects = await GetAllSubjectsAsync(cancellationToken);
             var subject = subjects.Result?.FirstOrDefault(s => s.Id == createdTask.SubjectId);
             var subjectName = subject?.SubjectName ?? string.Empty;
@@ -988,7 +968,6 @@ public class AdminService : IAdminService
     {
         try
         {
-            // Получаем текущее задание
             var currentTask = await _taskRepository.GetTaskByIdAsync(taskId, cancellationToken);
             if (currentTask == null)
             {
@@ -999,7 +978,6 @@ public class AdminService : IAdminService
                 };
             }
 
-            // Валидация difficulty если указана
             if (request.Difficulty.HasValue && (request.Difficulty < 1 || request.Difficulty > 5))
             {
                 return new HttpOperationResult<Admin.TaskDetailsDto>
@@ -1009,7 +987,6 @@ public class AdminService : IAdminService
                 };
             }
 
-            // Валидация task_type если указан
             if (!string.IsNullOrWhiteSpace(request.TaskType))
             {
                 var validTaskTypes = new[] { "numeric", "text" };
@@ -1023,7 +1000,6 @@ public class AdminService : IAdminService
                 }
             }
 
-            // Обновляем задание через репозиторий
             var updatedTask = new CTH.Database.Entities.Public.TaskItem
             {
                 Id = taskId,
@@ -1038,7 +1014,6 @@ public class AdminService : IAdminService
 
             await _taskRepository.UpdateAsync(updatedTask, cancellationToken);
 
-            // Получаем обновленное задание
             var task = await _taskRepository.GetTaskByIdAsync(taskId, cancellationToken);
             if (task == null)
             {
@@ -1049,7 +1024,6 @@ public class AdminService : IAdminService
                 };
             }
 
-            // Получаем название предмета и темы
             var subjects = await GetAllSubjectsAsync(cancellationToken);
             var subject = subjects.Result?.FirstOrDefault(s => s.Id == task.SubjectId);
             var subjectName = subject?.SubjectName ?? string.Empty;
@@ -1210,7 +1184,6 @@ public class AdminService : IAdminService
         }
     }
 
-    // Tests
     public async Task<HttpOperationResult<IReadOnlyCollection<Admin.TestListItemDto>>> GetAllTestsAsync(Admin.TestFilterDto? filter, CancellationToken cancellationToken)
     {
         try
@@ -1266,25 +1239,22 @@ public class AdminService : IAdminService
     {
         try
         {
-            // Админ может создавать любые тесты, включая state archive
-            // Для state archive тестов author_id = null, для обычных тоже null (админ создает от имени системы)
             var newTest = new CTH.Database.Entities.Public.Test
             {
                 SubjectId = request.SubjectId,
                 TestKind = request.TestKind,
                 Title = request.Title,
-                AuthorId = null, // Админ создает тесты от имени системы
+                AuthorId = null, 
                 TimeLimitSec = request.TimeLimitSec,
                 AttemptsAllowed = request.AttemptsAllowed,
                 Mode = request.Mode,
                 IsPublished = request.IsPublished,
-                IsPublic = request.IsStateArchive || request.IsPublic, // State archive тесты всегда публичные
+                IsPublic = request.IsStateArchive || request.IsPublic, 
                 IsStateArchive = request.IsStateArchive
             };
 
             var testId = await _testRepository.CreateAsync(newTest, cancellationToken);
 
-            // Добавляем задания в тест
             if (request.Tasks != null && request.Tasks.Count > 0)
             {
                 var tasks = request.Tasks
@@ -1300,7 +1270,6 @@ public class AdminService : IAdminService
                 await _testRepository.ReplaceTasksAsync(testId, tasks, cancellationToken);
             }
 
-            // Получаем созданный тест
             var testDetails = await _testRepository.GetTestByIdAsync(testId, cancellationToken);
             var testTasks = await _testRepository.GetTestTasksAsync(testId, cancellationToken);
 
@@ -1367,26 +1336,23 @@ public class AdminService : IAdminService
                 };
             }
 
-            // Админ может обновлять любые тесты
-            // Обновляем только те поля, которые можно изменить через UpdateTest
             var updatedTest = new CTH.Database.Entities.Public.Test
             {
                 Id = testId,
                 SubjectId = request.SubjectId,
                 TestKind = request.TestKind,
                 Title = request.Title,
-                AuthorId = existing.AuthorId, // Сохраняем существующего автора (не обновляется через UpdateTest)
+                AuthorId = existing.AuthorId,
                 TimeLimitSec = request.TimeLimitSec,
                 AttemptsAllowed = request.AttemptsAllowed,
                 Mode = request.Mode,
                 IsPublished = request.IsPublished,
-                IsPublic = request.IsStateArchive || request.IsPublic, // State archive тесты всегда публичные
+                IsPublic = request.IsStateArchive || request.IsPublic,
                 IsStateArchive = request.IsStateArchive
             };
 
             await _testRepository.UpdateAsync(updatedTest, cancellationToken);
 
-            // Обновляем задания в тесте
             if (request.Tasks != null && request.Tasks.Count > 0)
             {
                 var tasks = request.Tasks
@@ -1402,7 +1368,6 @@ public class AdminService : IAdminService
                 await _testRepository.ReplaceTasksAsync(testId, tasks, cancellationToken);
             }
 
-            // Получаем обновленный тест
             var testDetails = await _testRepository.GetTestByIdAsync(testId, cancellationToken);
             var testTasks = await _testRepository.GetTestTasksAsync(testId, cancellationToken);
 
@@ -1487,9 +1452,8 @@ public class AdminService : IAdminService
         }
     }
 
-    // Invitation Codes
-    private const string CodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Исключаем похожие символы (0, O, I, 1)
-    private const int CodeLength = 32; // XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX = 32 символа
+    private const string CodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private const int CodeLength = 32; 
 
     public async Task<HttpOperationResult<IReadOnlyCollection<Admin.InvitationCodeListItemDto>>> GetAllInvitationCodesAsync(long? teacherId, string? status, CancellationToken cancellationToken)
     {
@@ -1540,7 +1504,6 @@ public class AdminService : IAdminService
     {
         try
         {
-            // Проверяем, что учитель существует
             var allUsers = await GetAllUsersAsync(cancellationToken);
             var teacher = allUsers.Result?.FirstOrDefault(u => u.Id == request.TeacherId);
             if (teacher == null)
@@ -1552,7 +1515,6 @@ public class AdminService : IAdminService
                 };
             }
 
-            // Генерируем уникальный код
             string code;
             int attempts = 0;
             const int maxAttempts = 10;
@@ -1577,7 +1539,6 @@ public class AdminService : IAdminService
                 };
             }
 
-            // Форматируем код как GUID: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
             code = FormatCode(code);
 
             var parameters = new List<NpgsqlParameter>
@@ -1604,7 +1565,6 @@ public class AdminService : IAdminService
                 };
             }
 
-            // Получаем созданный код
             var codes = await GetAllInvitationCodesAsync(null, null, cancellationToken);
             var createdCode = codes.Result?.FirstOrDefault(c => c.Id == createdId);
 
@@ -1673,7 +1633,6 @@ public class AdminService : IAdminService
                 };
             }
 
-            // Получаем обновленный код
             var codes = await GetAllInvitationCodesAsync(null, null, cancellationToken);
             var updatedCode = codes.Result?.FirstOrDefault(c => c.Id == invitationCodeId);
 
@@ -1766,7 +1725,6 @@ public class AdminService : IAdminService
 
     private static string FormatCode(string code)
     {
-        // Форматируем как GUID: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
         if (code.Length == CodeLength)
         {
             return $"{code[0..8]}-{code[8..12]}-{code[12..16]}-{code[16..20]}-{code[20..32]}";

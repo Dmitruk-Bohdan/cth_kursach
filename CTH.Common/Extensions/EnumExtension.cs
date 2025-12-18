@@ -27,7 +27,7 @@ namespace CTH.Common.Extensions
         }
 
 
-        //TryParseFromInt as Enum Type Extension
+        
 
 
     }

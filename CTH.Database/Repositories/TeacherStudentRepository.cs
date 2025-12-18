@@ -119,7 +119,6 @@ public class TeacherStudentRepository : ITeacherStudentRepository
 
     public async Task<TeacherStudent?> GetByTeacherAndStudentAsync(long teacherId, long studentId, CancellationToken cancellationToken)
     {
-        // Для проверки существования связи используем простой запрос
         var parameters = new[]
         {
             new NpgsqlParameter("teacher_id", NpgsqlDbType.Bigint) { Value = teacherId },

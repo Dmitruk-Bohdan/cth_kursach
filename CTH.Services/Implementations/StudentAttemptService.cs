@@ -33,7 +33,7 @@ public class StudentAttemptService : IStudentAttemptService
         _logger.LogInformation("User {UserId} requested attempt start for test {TestId}", userId, testId);
         var test = await _testRepository.GetTestByIdAsync(testId, cancellationToken);
         
-        // Проверяем доступность теста: публичный/государственный или MIXED тест автора
+        
         var isAccessible = test != null 
             && test.IsPublished 
             && (test.IsPublic 
@@ -277,14 +277,14 @@ public class StudentAttemptService : IStudentAttemptService
             };
         }
 
-        // Получаем задания теста с правильными ответами
+        
         var testTasks = await _testRepository.GetTestTasksAsync(attempt.TestId, cancellationToken);
         
-        // Получаем ответы пользователя
+        
         var userAnswers = await _userAnswerRepository.GetByAttemptIdAsync(attemptId, cancellationToken);
         var answersDict = userAnswers.ToDictionary(a => a.TaskId, a => a);
 
-        // Объединяем задания с ответами пользователя
+        
         var tasksWithAnswers = testTasks
             .OrderBy(t => t.Position)
             .Select(t => new AttemptTaskDetailsDto
@@ -424,7 +424,7 @@ public class StudentAttemptService : IStudentAttemptService
             using var document = JsonDocument.Parse(json);
             _logger.LogDebug("[ExtractAnswerValue] JSON parsed. Root element kind: {ValueKind}", document.RootElement.ValueKind);
 
-            // Приоритет 1: Если это JSON-строка (новый формат)
+            
             if (document.RootElement.ValueKind == JsonValueKind.String)
             {
                 var result = document.RootElement.GetString();
@@ -432,7 +432,7 @@ public class StudentAttemptService : IStudentAttemptService
                 return result;
             }
 
-            // Приоритет 2: Если это объект с полем "value" (старый формат для обратной совместимости)
+            
             if (document.RootElement.ValueKind == JsonValueKind.Object &&
                 document.RootElement.TryGetProperty("value", out var property))
             {
@@ -450,7 +450,7 @@ public class StudentAttemptService : IStudentAttemptService
         catch (JsonException ex)
         {
             _logger.LogWarning(ex, "[ExtractAnswerValue] Failed to parse answer json: {Json}", json);
-            // Если не удалось распарсить, пытаемся убрать кавычки если это закавыченная строка
+            
             var trimmed = json.Trim();
             if (trimmed.StartsWith("\"", StringComparison.Ordinal) && 
                 trimmed.EndsWith("\"", StringComparison.Ordinal) && 

@@ -22,7 +22,7 @@ public class StudentTeacherService : IStudentTeacherService
 
     public async Task<HttpOperationResult<TeacherDto>> JoinTeacherByCodeAsync(long studentId, string invitationCode, CancellationToken cancellationToken)
     {
-        // Нормализуем код: убираем пробелы, приводим к верхнему регистру
+        
         var normalizedCode = invitationCode?.Trim().ToUpperInvariant() ?? string.Empty;
         
         if (string.IsNullOrWhiteSpace(normalizedCode))
@@ -34,7 +34,7 @@ public class StudentTeacherService : IStudentTeacherService
             };
         }
 
-        // Ищем код приглашения (код хранится с дефисами)
+        
         var code = await _invitationCodeRepository.GetByCodeAsync(normalizedCode, cancellationToken);
         if (code == null)
         {
@@ -45,7 +45,7 @@ public class StudentTeacherService : IStudentTeacherService
             };
         }
 
-        // Проверяем статус кода
+        
         if (code.Status != "active")
         {
             return new HttpOperationResult<TeacherDto>
@@ -55,7 +55,7 @@ public class StudentTeacherService : IStudentTeacherService
             };
         }
 
-        // Проверяем срок действия
+        
         if (code.ExpiresAt.HasValue && code.ExpiresAt.Value < DateTimeOffset.UtcNow)
         {
             return new HttpOperationResult<TeacherDto>
@@ -65,7 +65,7 @@ public class StudentTeacherService : IStudentTeacherService
             };
         }
 
-        // Проверяем лимит использований
+        
         if (code.MaxUses.HasValue && code.UsedCount >= code.MaxUses.Value)
         {
             return new HttpOperationResult<TeacherDto>
@@ -75,7 +75,7 @@ public class StudentTeacherService : IStudentTeacherService
             };
         }
 
-        // Проверяем, не привязан ли уже ученик к этому учителю
+        
         var existing = await _teacherStudentRepository.GetByTeacherAndStudentAsync(code.TeacherId, studentId, cancellationToken);
         if (existing != null)
         {
@@ -87,10 +87,10 @@ public class StudentTeacherService : IStudentTeacherService
                     Error = "You are already connected to this teacher"
                 };
             }
-            // Если связь была отозвана, можно создать новую
+            
         }
 
-        // Создаем связь
+        
         var teacherStudent = new TeacherStudent
         {
             TeacherId = code.TeacherId,
@@ -105,7 +105,7 @@ public class StudentTeacherService : IStudentTeacherService
         }
         catch (Exception ex)
         {
-            // Если связь уже существует (UNIQUE constraint), возвращаем ошибку
+            
             if (ex.Message.Contains("UNIQUE") || ex.Message.Contains("duplicate"))
             {
                 return new HttpOperationResult<TeacherDto>
@@ -117,11 +117,11 @@ public class StudentTeacherService : IStudentTeacherService
             throw;
         }
 
-        // Увеличиваем счетчик использований
+        
         code.UsedCount++;
         await _invitationCodeRepository.UpdateAsync(code, cancellationToken);
 
-        // Получаем информацию об учителе
+        
         var teachers = await _teacherStudentRepository.GetTeachersByStudentIdAsync(studentId, cancellationToken);
         var teacher = teachers.FirstOrDefault(t => t.TeacherId == code.TeacherId);
 
@@ -162,7 +162,7 @@ public class StudentTeacherService : IStudentTeacherService
 
     public async Task<HttpOperationResult> RemoveTeacherAsync(long studentId, long teacherId, CancellationToken cancellationToken)
     {
-        // Проверяем, существует ли связь
+        
         var existing = await _teacherStudentRepository.GetByTeacherAndStudentAsync(teacherId, studentId, cancellationToken);
         if (existing == null)
         {
@@ -173,7 +173,7 @@ public class StudentTeacherService : IStudentTeacherService
             };
         }
 
-        // Проверяем, что это действительно связь этого ученика
+        
         if (existing.StudentId != studentId)
         {
             return new HttpOperationResult
@@ -183,7 +183,7 @@ public class StudentTeacherService : IStudentTeacherService
             };
         }
 
-        // Удаляем связь
+        
         await _teacherStudentRepository.DeleteAsync(teacherId, studentId, cancellationToken);
 
         return new HttpOperationResult(HttpStatusCode.NoContent);

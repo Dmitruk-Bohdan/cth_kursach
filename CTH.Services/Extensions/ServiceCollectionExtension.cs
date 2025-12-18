@@ -42,7 +42,6 @@ namespace CTH.Services.Extensions
 
         public static IServiceCollection ConfigureHttpClient(this IServiceCollection services)
         {
-            //services.AddHttpClient<ILinkedInApiService, LinkedInApiService>();
             return services;
         }
 

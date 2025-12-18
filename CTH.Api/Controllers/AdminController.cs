@@ -30,7 +30,6 @@ public class AdminController : ControllerBase
                roleInt == (int)RoleTypeEnum.Admin;
     }
 
-    // Users
     [HttpGet("users")]
     public async Task<IActionResult> GetAllUsers(CancellationToken cancellationToken)
     {
@@ -68,7 +67,6 @@ public class AdminController : ControllerBase
             return Forbid();
         }
 
-        // TODO: Implement GetUserById in service
         return NotFound();
     }
 
@@ -120,7 +118,6 @@ public class AdminController : ControllerBase
         return result.ToActionResult();
     }
 
-    // Subjects
     [HttpGet("subjects")]
     public async Task<IActionResult> GetAllSubjects(CancellationToken cancellationToken)
     {
@@ -158,7 +155,6 @@ public class AdminController : ControllerBase
             return Forbid();
         }
 
-        // TODO: Implement GetSubjectById in service
         return NotFound();
     }
 
@@ -186,7 +182,6 @@ public class AdminController : ControllerBase
         return result.ToActionResult();
     }
 
-    // Topics
     [HttpGet("topics")]
     public async Task<IActionResult> GetAllTopics([FromQuery] long? subjectId, CancellationToken cancellationToken)
     {
@@ -224,7 +219,6 @@ public class AdminController : ControllerBase
             return Forbid();
         }
 
-        // TODO: Implement GetTopicById in service
         return NotFound();
     }
 
@@ -252,7 +246,6 @@ public class AdminController : ControllerBase
         return result.ToActionResult();
     }
 
-    // Tasks
     [HttpGet("tasks")]
     public async Task<IActionResult> GetAllTasks([FromQuery] TaskFilterDto? filter, CancellationToken cancellationToken)
     {
@@ -290,7 +283,6 @@ public class AdminController : ControllerBase
             return Forbid();
         }
 
-        // TODO: Implement GetTaskById in service
         return NotFound();
     }
 
@@ -342,7 +334,6 @@ public class AdminController : ControllerBase
         return result.ToActionResult();
     }
 
-    // Tests
     [HttpGet("tests")]
     public async Task<IActionResult> GetAllTests([FromQuery] TestFilterDto? filter, CancellationToken cancellationToken)
     {
@@ -380,7 +371,6 @@ public class AdminController : ControllerBase
             return Forbid();
         }
 
-        // TODO: Implement GetTestById in service
         return NotFound();
     }
 
@@ -408,7 +398,6 @@ public class AdminController : ControllerBase
         return result.ToActionResult();
     }
 
-    // Invitation Codes
     [HttpGet("invitation-codes")]
     public async Task<IActionResult> GetAllInvitationCodes([FromQuery] long? teacherId, [FromQuery] string? status, CancellationToken cancellationToken)
     {
@@ -446,7 +435,6 @@ public class AdminController : ControllerBase
             return Forbid();
         }
 
-        // TODO: Implement GetInvitationCodeById in service
         return NotFound();
     }
 

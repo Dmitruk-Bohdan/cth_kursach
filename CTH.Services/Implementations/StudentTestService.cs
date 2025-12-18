@@ -54,7 +54,7 @@ public class StudentTestService : IStudentTestService
             };
         }
 
-        // Проверяем доступ: либо тест публичный/государственный, либо это MIXED тест автора
+        
         if (!IsTestAccessible(test, userId))
         {
             return new HttpOperationResult<TestDetailsDto>
@@ -94,11 +94,11 @@ public class StudentTestService : IStudentTestService
 
     public async Task<HttpOperationResult<TestDetailsDto>> GenerateMixedTestAsync(long userId, GenerateMixedTestRequestDto request, CancellationToken cancellationToken)
     {
-        // Определяем темы для генерации теста
-        var topicsToUse = request.Topics.ToList();
-        var topicNames = new Dictionary<long, string>(); // Для хранения названий тем
         
-        // Если темы не указаны, используем топ-3 темы с наибольшим количеством ошибок
+        var topicsToUse = request.Topics.ToList();
+        var topicNames = new Dictionary<long, string>(); 
+        
+        
         if (topicsToUse.Count == 0)
         {
             var stats = await _userStatsRepository.GetSubjectStatisticsWithTopicsAsync(userId, request.SubjectId, cancellationToken);
@@ -129,10 +129,10 @@ public class StudentTestService : IStudentTestService
             {
                 TopicId = x.Stats.TopicId!.Value,
                 TaskCount = 10,
-                DesiredDifficulty = 3 // Средняя сложность по умолчанию
+                DesiredDifficulty = 3 
             }).ToList();
 
-            // Сохраняем названия тем из статистики
+            
             foreach (var topErrorTopic in topErrorTopics)
             {
                 if (topErrorTopic.Stats.TopicId.HasValue && topErrorTopic.Stats.Topic != null)
@@ -142,7 +142,7 @@ public class StudentTestService : IStudentTestService
             }
         }
 
-        // Собираем все задания для теста и получаем названия тем
+        
         var allTestTasks = new List<TestTask>();
         var position = 1;
 
@@ -154,7 +154,7 @@ public class StudentTestService : IStudentTestService
                 topicSelection.DesiredDifficulty,
                 cancellationToken);
 
-            // Получаем название темы из первой задачи, если еще не получено
+            
             if (!topicNames.ContainsKey(topicSelection.TopicId) && tasks.Count > 0)
             {
                 var firstTask = tasks.FirstOrDefault();
@@ -168,7 +168,7 @@ public class StudentTestService : IStudentTestService
             {
                 allTestTasks.Add(new TestTask
                 {
-                    TestId = 0, // Будет установлено после создания теста
+                    TestId = 0, 
                     TaskId = task.Id,
                     Position = position++,
                     Weight = null
@@ -185,7 +185,7 @@ public class StudentTestService : IStudentTestService
             };
         }
 
-        // Формируем название теста
+        
         string testTitle;
         if (!string.IsNullOrWhiteSpace(request.Title))
         {
@@ -193,7 +193,7 @@ public class StudentTestService : IStudentTestService
         }
         else
         {
-            // Формируем название из первых трех тем
+            
             var firstThreeTopics = topicsToUse.Take(3).ToList();
             var topicNameParts = new List<string>();
             
@@ -213,13 +213,13 @@ public class StudentTestService : IStudentTestService
             testTitle = $"{topicsPart} - {dateTimePart}";
         }
 
-        // Ограничиваем длину названия до 200 символов (максимум в БД)
+        
         if (testTitle.Length > 200)
         {
             testTitle = testTitle.Substring(0, 197) + "...";
         }
 
-        // Создаем тест
+        
         var test = new Test
         {
             SubjectId = request.SubjectId,
@@ -227,7 +227,7 @@ public class StudentTestService : IStudentTestService
             Title = testTitle,
             AuthorId = userId,
             TimeLimitSec = request.TimeLimitSec,
-            AttemptsAllowed = null, // Неограниченно
+            AttemptsAllowed = null, 
             Mode = "training",
             IsPublished = true,
             IsPublic = false,
@@ -236,16 +236,16 @@ public class StudentTestService : IStudentTestService
 
         var testId = await _testRepository.CreateAsync(test, cancellationToken);
 
-        // Обновляем TestId в заданиях
+        
         foreach (var task in allTestTasks)
         {
             task.TestId = testId;
         }
 
-        // Добавляем задания в тест
+        
         await _testRepository.ReplaceTasksAsync(testId, allTestTasks, cancellationToken);
 
-        // Получаем созданный тест
+        
         var createdTest = await _testRepository.GetTestByIdAsync(testId, cancellationToken);
         var testTasks = await _testRepository.GetTestTasksAsync(testId, cancellationToken);
 
@@ -281,12 +281,12 @@ public class StudentTestService : IStudentTestService
         short desiredDifficulty,
         CancellationToken cancellationToken)
     {
-        // Определяем распределение сложности
+        
         var difficulties = GetDifficultyDistribution(desiredDifficulty, taskCount);
         
         var allTasks = new List<TaskItem>();
         
-        // Получаем задания для каждой сложности
+        
         foreach (var (difficulty, count) in difficulties)
         {
             if (count > 0)
@@ -301,14 +301,14 @@ public class StudentTestService : IStudentTestService
             }
         }
 
-        // Если не хватает заданий, берем любые доступные
+        
         if (allTasks.Count < taskCount)
         {
             var remaining = taskCount - allTasks.Count;
             var allAvailableTasks = await _taskRepository.GetTasksByTopicsAndDifficultyAsync(
                 new[] { topicId },
                 new short[] { 1, 2, 3, 4, 5 },
-                remaining * 2, // Берем больше, чтобы было из чего выбирать
+                remaining * 2, 
                 cancellationToken);
 
             var usedTaskIds = allTasks.Select(t => t.Id).ToHashSet();
@@ -320,7 +320,7 @@ public class StudentTestService : IStudentTestService
             allTasks.AddRange(additionalTasks);
         }
 
-        // Перемешиваем и берем нужное количество
+        
         var random = new Random();
         return allTasks.OrderBy(_ => random.Next()).Take(taskCount).ToList();
     }
@@ -329,26 +329,26 @@ public class StudentTestService : IStudentTestService
     {
         var result = new List<(short, int)>();
 
-        if (desiredDifficulty == 1) // very easy
+        if (desiredDifficulty == 1) 
         {
-            result.Add((1, (int)(totalCount * 0.7))); // 70% very easy
-            result.Add((2, (int)(totalCount * 0.2))); // 20% easy
-            result.Add((3, (int)(totalCount * 0.1))); // 10% medium
+            result.Add((1, (int)(totalCount * 0.7))); 
+            result.Add((2, (int)(totalCount * 0.2))); 
+            result.Add((3, (int)(totalCount * 0.1))); 
         }
-        else if (desiredDifficulty == 5) // very hard
+        else if (desiredDifficulty == 5) 
         {
-            result.Add((5, (int)(totalCount * 0.7))); // 70% very hard
-            result.Add((4, (int)(totalCount * 0.2))); // 20% hard
-            result.Add((3, (int)(totalCount * 0.1))); // 10% medium
+            result.Add((5, (int)(totalCount * 0.7))); 
+            result.Add((4, (int)(totalCount * 0.2))); 
+            result.Add((3, (int)(totalCount * 0.1))); 
         }
         else
         {
-            result.Add((desiredDifficulty, (int)(totalCount * 0.7))); // 70% желаемая
-            result.Add((desiredDifficulty > 1 ? (short)(desiredDifficulty - 1) : desiredDifficulty, (int)(totalCount * 0.2))); // 20% ниже
-            result.Add((desiredDifficulty < 5 ? (short)(desiredDifficulty + 1) : desiredDifficulty, (int)(totalCount * 0.1))); // 10% выше
+            result.Add((desiredDifficulty, (int)(totalCount * 0.7))); 
+            result.Add((desiredDifficulty > 1 ? (short)(desiredDifficulty - 1) : desiredDifficulty, (int)(totalCount * 0.2))); 
+            result.Add((desiredDifficulty < 5 ? (short)(desiredDifficulty + 1) : desiredDifficulty, (int)(totalCount * 0.1))); 
         }
 
-        // Убеждаемся, что сумма равна totalCount
+        
         var sum = result.Sum(r => r.Item2);
         if (sum < totalCount)
         {
@@ -424,13 +424,13 @@ public class StudentTestService : IStudentTestService
             return false;
         }
 
-        // Публичные или государственные тесты доступны всем
+        
         if (test.IsPublic || test.IsStateArchive)
         {
             return true;
         }
 
-        // MIXED тесты доступны только их автору
+        
         if (test.TestKind == "MIXED" && userId.HasValue && test.AuthorId == userId.Value)
         {
             return true;

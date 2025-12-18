@@ -8,5 +8,5 @@ public class TestTaskDto
     public string Statement { get; set; } = string.Empty;
     public short Difficulty { get; set; }
     public string? Explanation { get; set; }
-    public string? CorrectAnswer { get; set; } // Правильный ответ (только для завершенных попыток)
+    public string? CorrectAnswer { get; set; } 
 }

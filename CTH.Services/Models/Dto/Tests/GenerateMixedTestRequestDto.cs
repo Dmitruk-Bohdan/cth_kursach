@@ -12,6 +12,6 @@ public class TopicSelectionDto
 {
     public long TopicId { get; set; }
     public int TaskCount { get; set; }
-    public short DesiredDifficulty { get; set; } // 1-5
+    public short DesiredDifficulty { get; set; } 
 }
 

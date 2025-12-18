@@ -293,7 +293,7 @@ public class TeacherTestService : ITeacherTestService
 
     public async Task<HttpOperationResult<TaskListItemDto>> CreateTaskAsync(long userId, bool isAdmin, CreateTaskRequestDto request, CancellationToken cancellationToken)
     {
-        // Валидация
+        
         if (request.Difficulty < 1 || request.Difficulty > 5)
         {
             return new HttpOperationResult<TaskListItemDto>
@@ -327,7 +327,7 @@ public class TeacherTestService : ITeacherTestService
 
         var taskId = await _taskRepository.CreateAsync(newTask, cancellationToken);
 
-        // Получаем созданное задание для возврата
+        
         var tasks = await _taskRepository.GetTasksBySubjectAsync(request.SubjectId, taskId.ToString(), cancellationToken);
         var createdTask = tasks.FirstOrDefault(t => t.Id == taskId);
 
@@ -358,7 +358,7 @@ public class TeacherTestService : ITeacherTestService
 
     public async Task<HttpOperationResult<TaskListItemDto>> UpdateTaskAsync(long userId, bool isAdmin, long taskId, UpdateTaskRequestDto request, CancellationToken cancellationToken)
     {
-        // Получаем существующее задание
+        
         var existingTask = await _taskRepository.GetTaskByIdAsync(taskId, cancellationToken);
         if (existingTask == null)
         {
@@ -369,7 +369,7 @@ public class TeacherTestService : ITeacherTestService
             };
         }
 
-        // Проверяем права доступа: преподаватель может редактировать задание только если оно используется в его тестах
+        
         if (!isAdmin)
         {
             var isUsedInTeacherTests = await _taskRepository.IsTaskUsedInTeacherTestsAsync(taskId, userId, cancellationToken);
@@ -383,7 +383,7 @@ public class TeacherTestService : ITeacherTestService
             }
         }
 
-        // Валидация difficulty, если указан
+        
         if (request.Difficulty.HasValue && (request.Difficulty.Value < 1 || request.Difficulty.Value > 5))
         {
             return new HttpOperationResult<TaskListItemDto>
@@ -393,7 +393,7 @@ public class TeacherTestService : ITeacherTestService
             };
         }
 
-        // Валидация task type, если указан
+        
         if (!string.IsNullOrWhiteSpace(request.TaskType))
         {
             var validTaskTypes = new[] { "numeric", "text" };
@@ -407,7 +407,7 @@ public class TeacherTestService : ITeacherTestService
             }
         }
 
-        // Обновляем только указанные поля
+        
         var updatedTask = new TaskItem
         {
             Id = existingTask.Id,
@@ -423,7 +423,7 @@ public class TeacherTestService : ITeacherTestService
 
         await _taskRepository.UpdateAsync(updatedTask, cancellationToken);
 
-        // Получаем обновленное задание для возврата
+        
         var tasks = await _taskRepository.GetTasksBySubjectAsync(existingTask.SubjectId, taskId.ToString(), cancellationToken);
         var updatedTaskItem = tasks.FirstOrDefault(t => t.Id == taskId);
 
